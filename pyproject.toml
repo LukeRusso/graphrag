@@ -245,6 +245,7 @@ include = [
     "tests"
 ]
 exclude = ["**/node_modules", "**/__pycache__"]
+venvPath = "."
 
 [tool.pytest.ini_options]
 asyncio_default_fixture_loop_scope = "function"
