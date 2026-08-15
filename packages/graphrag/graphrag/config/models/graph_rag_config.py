@@ -20,7 +20,10 @@ from graphrag.config.defaults import graphrag_config_defaults
 from graphrag.config.embeddings import all_embeddings
 from graphrag.config.enums import AsyncType, ReportingType
 from graphrag.config.models.basic_search_config import BasicSearchConfig
-from graphrag.config.models.cluster_graph_config import ClusterGraphConfig
+from graphrag.config.models.cluster_graph_config import (
+    ClusterGraphConfig,
+    LeidenClusterGraphConfig,
+)
 from graphrag.config.models.community_reports_config import CommunityReportsConfig
 from graphrag.config.models.drift_search_config import DRIFTSearchConfig
 from graphrag.config.models.embed_text_config import EmbedTextConfig
@@ -206,7 +209,7 @@ class GraphRagConfig(BaseModel):
 
     cluster_graph: ClusterGraphConfig = Field(
         description="The cluster graph configuration to use.",
-        default=ClusterGraphConfig(),
+        default=LeidenClusterGraphConfig(),
     )
     """The cluster graph configuration to use."""
 

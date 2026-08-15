@@ -3,23 +3,49 @@
 
 """Parameterization settings for the default configuration."""
 
+from enum import Enum
+from typing import Literal
+
 from pydantic import BaseModel, Field
 
 from graphrag.config.defaults import graphrag_config_defaults
 
 
-class ClusterGraphConfig(BaseModel):
-    """Configuration section for clustering graphs."""
+class GraphClusteringAlgorithm(Enum):
+    """Enum for graph clustering algorithm identifiers."""
+
+    LEIDEN = "Leiden"
+
+class BaseClusterGraphConfig(BaseModel):
+    """General shared configuration section for clustering graphs."""
+
+    algorithm: Literal[GraphClusteringAlgorithm.LEIDEN] = Field(
+        ...,
+        description="The unique identifier of the graph clustering algorithm."
+    )
+
+    use_lcc: bool = Field(
+        description="Whether to use the largest connected component.",
+        default=graphrag_config_defaults.cluster_graph.use_lcc,
+    )
+
+class LeidenClusterGraphConfig(BaseClusterGraphConfig):
+    """Configuration section for clustering graphs using Leiden algorithm."""
+
+    algorithm: Literal[GraphClusteringAlgorithm.LEIDEN] = Field(
+        description="Leiden graph clustering algorithm configuration.",
+        default=GraphClusteringAlgorithm.LEIDEN,
+    )
 
     max_cluster_size: int = Field(
         description="The maximum cluster size to use.",
         default=graphrag_config_defaults.cluster_graph.max_cluster_size,
     )
-    use_lcc: bool = Field(
-        description="Whether to use the largest connected component.",
-        default=graphrag_config_defaults.cluster_graph.use_lcc,
-    )
+
     seed: int = Field(
         description="The seed to use for the clustering.",
         default=graphrag_config_defaults.cluster_graph.seed,
     )
+
+
+ClusterGraphConfig = LeidenClusterGraphConfig
