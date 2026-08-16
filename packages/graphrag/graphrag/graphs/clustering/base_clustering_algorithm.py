@@ -1,9 +1,7 @@
 from abc import ABC, abstractmethod
 
 from graphrag.config.models.cluster_graph_config import ClusterGraphConfig
-from graphrag.graphs.type_aliases import Edge
-
-from .cluster import Cluster
+from graphrag.graphs.types import Cluster, Edge
 
 
 class IClusteringAlgorithm(ABC):

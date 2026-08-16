@@ -4,16 +4,15 @@
 """A module containing cluster_graph method definition."""
 
 import logging
-from collections import defaultdict
 
 import pandas as pd
 
-from graphrag.graphs.hierarchical_leiden import hierarchical_leiden
+from graphrag.config.models.cluster_graph_config import LeidenClusterGraphConfig
+from graphrag.graphs.hierarchical_leiden import HierarchicalLeiden
 from graphrag.graphs.stable_lcc import stable_lcc
-from packages.graphrag.graphrag.graphs.type_aliases import Edge
+from graphrag.graphs.types import Cluster, Edge
 
-Communities = list[tuple[int, int, int, list[str]]]
-
+Communities = list[Cluster]
 
 logger = logging.getLogger(__name__)
 
@@ -30,26 +29,11 @@ def cluster_graph(
         edge_df = stable_lcc(edge_df)
     edge_list = _df_to_edge_list(edge_df)
 
-    node_id_to_community_map, parent_mapping = _compute_leiden_communities(
-        edge_list=edge_list,
+    config: LeidenClusterGraphConfig = LeidenClusterGraphConfig(
         max_cluster_size=max_cluster_size,
-        seed=seed,
+        seed=seed if seed is not None else LeidenClusterGraphConfig().seed,
     )
-
-    levels = sorted(node_id_to_community_map.keys())
-
-    clusters: dict[int, dict[int, list[str]]] = {}
-    for level in levels:
-        result: dict[int, list[str]] = defaultdict(list)
-        clusters[level] = result
-        for node_id, community_id in node_id_to_community_map[level].items():
-            result[community_id].append(node_id)
-
-    results: Communities = []
-    for level in clusters:
-        for cluster_id, nodes in clusters[level].items():
-            results.append((level, cluster_id, parent_mapping[cluster_id], nodes))
-    return results
+    return HierarchicalLeiden().cluster(edges=edge_list, config=config)
 
 
 def _normalize_edges(edges: pd.DataFrame) -> pd.DataFrame:
@@ -74,34 +58,14 @@ def _df_to_edge_list(edges: pd.DataFrame) -> list[Edge]:
         else pd.Series(1.0, index=edges.index)
     )
 
-    return sorted(
-        zip(
-            edges["source"].astype(str),
-            edges["target"].astype(str),
-            weights,
-            strict=True,
+    return [
+        Edge(*tup)
+        for tup in sorted(
+            zip(
+                edges["source"].astype(str),
+                edges["target"].astype(str),
+                weights,
+                strict=True,
+            )
         )
-    )
-
-
-# Taken from graph_intelligence & adapted
-def _compute_leiden_communities(
-    edge_list: list[Edge],
-    max_cluster_size: int,
-    seed: int | None = None,
-) -> tuple[dict[int, dict[str, int]], dict[int, int]]:
-    """Return Leiden root communities and their hierarchy mapping."""
-    community_mapping = hierarchical_leiden(
-        edge_list, max_cluster_size=max_cluster_size, random_seed=seed
-    )
-    results: dict[int, dict[str, int]] = {}
-    hierarchy: dict[int, int] = {}
-    for partition in community_mapping:
-        results[partition.level] = results.get(partition.level, {})
-        results[partition.level][partition.node] = partition.cluster
-
-        hierarchy[partition.cluster] = (
-            partition.parent_cluster if partition.parent_cluster is not None else -1
-        )
-
-    return results, hierarchy
+    ]
