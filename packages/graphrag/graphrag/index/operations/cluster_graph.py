@@ -10,6 +10,7 @@ import pandas as pd
 
 from graphrag.graphs.hierarchical_leiden import hierarchical_leiden
 from graphrag.graphs.stable_lcc import stable_lcc
+from packages.graphrag.graphrag.graphs.type_aliases import Edge
 
 Communities = list[tuple[int, int, int, list[str]]]
 
@@ -24,10 +25,14 @@ def cluster_graph(
     seed: int | None = None,
 ) -> Communities:
     """Apply a hierarchical clustering algorithm to a relationships DataFrame."""
+    edge_df = _normalize_edges(edges)
+    if use_lcc:
+        edge_df = stable_lcc(edge_df)
+    edge_list = _df_to_edge_list(edge_df)
+
     node_id_to_community_map, parent_mapping = _compute_leiden_communities(
-        edges=edges,
+        edge_list=edge_list,
         max_cluster_size=max_cluster_size,
-        use_lcc=use_lcc,
         seed=seed,
     )
 
@@ -47,14 +52,7 @@ def cluster_graph(
     return results
 
 
-# Taken from graph_intelligence & adapted
-def _compute_leiden_communities(
-    edges: pd.DataFrame,
-    max_cluster_size: int,
-    use_lcc: bool,
-    seed: int | None = None,
-) -> tuple[dict[int, dict[str, int]], dict[int, int]]:
-    """Return Leiden root communities and their hierarchy mapping."""
+def _normalize_edges(edges: pd.DataFrame) -> pd.DataFrame:
     edge_df = edges.copy()
 
     # Normalize edge direction and deduplicate (undirected graph).
@@ -66,23 +64,33 @@ def _compute_leiden_communities(
     edge_df["target"] = hi
     edge_df.drop_duplicates(subset=["source", "target"], keep="last", inplace=True)
 
-    if use_lcc:
-        edge_df = stable_lcc(edge_df)
+    return edge_df
 
+
+def _df_to_edge_list(edges: pd.DataFrame) -> list[Edge]:
     weights = (
-        edge_df["weight"].astype(float)
-        if "weight" in edge_df.columns
-        else pd.Series(1.0, index=edge_df.index)
+        edges["weight"].astype(float)
+        if "weight" in edges.columns
+        else pd.Series(1.0, index=edges.index)
     )
-    edge_list: list[tuple[str, str, float]] = sorted(
+
+    return sorted(
         zip(
-            edge_df["source"].astype(str),
-            edge_df["target"].astype(str),
+            edges["source"].astype(str),
+            edges["target"].astype(str),
             weights,
             strict=True,
         )
     )
 
+
+# Taken from graph_intelligence & adapted
+def _compute_leiden_communities(
+    edge_list: list[Edge],
+    max_cluster_size: int,
+    seed: int | None = None,
+) -> tuple[dict[int, dict[str, int]], dict[int, int]]:
+    """Return Leiden root communities and their hierarchy mapping."""
     community_mapping = hierarchical_leiden(
         edge_list, max_cluster_size=max_cluster_size, random_seed=seed
     )
