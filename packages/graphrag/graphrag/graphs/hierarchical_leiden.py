@@ -40,7 +40,7 @@ class HierarchicalLeiden(IClusteringAlgorithm[LeidenClusterGraphConfig]):
         cluster_map: dict[int, Cluster] = {}
 
         for node_assignment in gn_cluster:
-            if cluster_map[node_assignment.cluster] is None:
+            if node_assignment.cluster not in cluster_map:
                 cluster_map[node_assignment.cluster] = Cluster(
                     level=node_assignment.level,
                     cluster_id=node_assignment.cluster,
