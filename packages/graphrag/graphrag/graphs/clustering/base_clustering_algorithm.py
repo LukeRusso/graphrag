@@ -1,12 +1,15 @@
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
 
-from graphrag.config.models.cluster_graph_config import ClusterGraphConfig
 from graphrag.graphs.types import Cluster, Edge
 
 
-class IClusteringAlgorithm(ABC):
+@dataclass
+class IClusteringAlgorithm[ClusterGraphConfig](ABC):
     """Interface for hierarchical clustering algorithm."""
 
+    config: ClusterGraphConfig
+
     @abstractmethod
-    def cluster(self, edges: list[Edge], config: ClusterGraphConfig) -> list[Cluster]:
+    def cluster(self, edges: list[Edge]) -> list[Cluster]:
         """Perform hierarchical clustering on input graph."""

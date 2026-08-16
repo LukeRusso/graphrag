@@ -13,20 +13,19 @@ from packages.graphrag.graphrag.graphs.clustering.base_clustering_algorithm impo
 )
 
 
-class HierarchicalLeiden(IClusteringAlgorithm):
+class HierarchicalLeiden(IClusteringAlgorithm[LeidenClusterGraphConfig]):
     """Hierarchical Leiden clustering on edge lists."""
 
     def cluster(
         self,
         edges: list[Edge],
-        config: LeidenClusterGraphConfig = LeidenClusterGraphConfig(),
     ) -> list[Cluster]:
         """Run hierarchical leiden on an edge list."""
         return self._gn_hierarchical_clusters_to_clusters(
             gn.hierarchical_leiden(
                 edges=[(e.source, e.dest, e.weight) for e in edges],
-                max_cluster_size=config.max_cluster_size,
-                seed=config.seed,
+                max_cluster_size=self.config.max_cluster_size,
+                seed=self.config.seed,
                 starting_communities=None,
                 resolution=1.0,
                 randomness=0.001,
