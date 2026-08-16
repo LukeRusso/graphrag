@@ -12,6 +12,7 @@ import numpy as np
 import pandas as pd
 from graphrag_storage.tables.table import Table
 
+from graphrag.config.models.cluster_graph_config import ClusterGraphConfig
 from graphrag.config.models.graph_rag_config import GraphRagConfig
 from graphrag.data_model.data_reader import DataReader
 from graphrag.data_model.schemas import COMMUNITIES_FINAL_COLUMNS
@@ -31,21 +32,12 @@ async def run_workflow(
     reader = DataReader(context.output_table_provider)
     relationships = await reader.relationships()
 
-    max_cluster_size = config.cluster_graph.max_cluster_size
-    use_lcc = config.cluster_graph.use_lcc
-    seed = config.cluster_graph.seed
-
     async with (
         context.output_table_provider.open("entities") as entities_table,
         context.output_table_provider.open("communities") as communities_table,
     ):
         sample_rows = await create_communities(
-            communities_table,
-            entities_table,
-            relationships,
-            max_cluster_size=max_cluster_size,
-            use_lcc=use_lcc,
-            seed=seed,
+            communities_table, entities_table, relationships, config.cluster_graph
         )
 
     logger.info("Workflow completed: create_communities")
@@ -56,9 +48,7 @@ async def create_communities(
     communities_table: Table,
     entities_table: Table,
     relationships: pd.DataFrame,
-    max_cluster_size: int,
-    use_lcc: bool,
-    seed: int | None = None,
+    graph_cluster_config: ClusterGraphConfig,
 ) -> list[dict[str, Any]]:
     """Build communities from clustered relationships and stream rows to the table.
 
@@ -83,12 +73,7 @@ async def create_communities(
         list[dict[str, Any]]
             Sample of up to 5 community rows for logging.
     """
-    clusters = cluster_graph(
-        relationships,
-        max_cluster_size,
-        use_lcc,
-        seed=seed,
-    )
+    clusters = cluster_graph(relationships, graph_cluster_config)
 
     title_to_entity_id: dict[str, str] = {}
     async for row in entities_table:
@@ -103,8 +88,7 @@ async def create_communities(
     entity_map = communities[["community", "title"]].copy()
     entity_map["entity_id"] = entity_map["title"].map(title_to_entity_id)
     entity_ids = (
-        entity_map
-        .dropna(subset=["entity_id"])
+        entity_map.dropna(subset=["entity_id"])
         .groupby("community")
         .agg(entity_ids=("entity_id", list))
         .reset_index()
@@ -127,8 +111,7 @@ async def create_communities(
         if intra.empty:
             continue
         grouped = (
-            intra
-            .explode("text_unit_ids")
+            intra.explode("text_unit_ids")
             .groupby(["community_x", "parent_x"])
             .agg(
                 relationship_ids=("id", list),

@@ -4,36 +4,38 @@
 """A module containing cluster_graph method definition."""
 
 import logging
+from typing import TYPE_CHECKING
 
 import pandas as pd
 
-from graphrag.config.models.cluster_graph_config import LeidenClusterGraphConfig
-from graphrag.graphs.hierarchical_leiden import HierarchicalLeiden
+from graphrag.config.models.cluster_graph_config import (
+    ClusterGraphConfig,
+)
+from graphrag.graphs.clustering.clustering_algorithm_factory import (
+    ClusteringAlgorithmFactory,
+)
 from graphrag.graphs.stable_lcc import stable_lcc
 from graphrag.graphs.types import Cluster, Edge
+
+if TYPE_CHECKING:
+    from graphrag.graphs.clustering.base_clustering_algorithm import (
+        IClusteringAlgorithm,
+    )
 
 Communities = list[Cluster]
 
 logger = logging.getLogger(__name__)
 
 
-def cluster_graph(
-    edges: pd.DataFrame,
-    max_cluster_size: int,
-    use_lcc: bool,
-    seed: int | None = None,
-) -> Communities:
+def cluster_graph(edges: pd.DataFrame, config: ClusterGraphConfig) -> Communities:
     """Apply a hierarchical clustering algorithm to a relationships DataFrame."""
     edge_df = _normalize_edges(edges)
-    if use_lcc:
+    if config.use_lcc:
         edge_df = stable_lcc(edge_df)
     edge_list = _df_to_edge_list(edge_df)
 
-    config: LeidenClusterGraphConfig = LeidenClusterGraphConfig(
-        max_cluster_size=max_cluster_size,
-        seed=seed if seed is not None else LeidenClusterGraphConfig().seed,
-    )
-    return HierarchicalLeiden().cluster(edges=edge_list, config=config)
+    cluster_algo: IClusteringAlgorithm = ClusteringAlgorithmFactory.from_config(config)
+    return cluster_algo.cluster(edges=edge_list)
 
 
 def _normalize_edges(edges: pd.DataFrame) -> pd.DataFrame:
