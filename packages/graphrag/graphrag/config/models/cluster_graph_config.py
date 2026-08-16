@@ -3,7 +3,7 @@
 
 """Parameterization settings for the default configuration."""
 
-from enum import Enum
+from enum import StrEnum
 from typing import Annotated, Literal
 
 from pydantic import BaseModel, Field
@@ -11,7 +11,7 @@ from pydantic import BaseModel, Field
 from graphrag.config.defaults import graphrag_config_defaults
 
 
-class GraphClusteringAlgorithmType(Enum):
+class GraphClusteringAlgorithmType(StrEnum):
     """Enum for graph clustering algorithm identifiers."""
 
     LEIDEN = "Leiden"
