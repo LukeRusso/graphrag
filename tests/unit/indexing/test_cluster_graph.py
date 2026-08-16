@@ -9,6 +9,7 @@ iterrows, reducing copies, etc.) can be verified against known output.
 
 import pandas as pd
 import pytest
+from graphrag.config.models.cluster_graph_config import LeidenClusterGraphConfig
 from graphrag.index.operations.cluster_graph import (
     Communities,
     cluster_graph,
@@ -38,7 +39,9 @@ class TestClusterGraphBasic:
     def test_single_triangle(self):
         """A single triangle should produce one community at level 0."""
         edges = _make_edges([("X", "Y", 1.0), ("X", "Z", 1.0), ("Y", "Z", 1.0)])
-        clusters = cluster_graph(edges, max_cluster_size=10, use_lcc=False, seed=42)
+        clusters = cluster_graph(
+            edges, LeidenClusterGraphConfig(max_cluster_size=10, use_lcc=False, seed=42)
+        )
 
         assert len(clusters) == 1
         level, _cid, parent, nodes = clusters[0]
@@ -48,15 +51,19 @@ class TestClusterGraphBasic:
 
     def test_two_disconnected_cliques(self):
         """Two disconnected triangles should produce two communities."""
-        edges = _make_edges([
-            ("A", "B", 1.0),
-            ("A", "C", 1.0),
-            ("B", "C", 1.0),
-            ("D", "E", 1.0),
-            ("D", "F", 1.0),
-            ("E", "F", 1.0),
-        ])
-        clusters = cluster_graph(edges, max_cluster_size=10, use_lcc=False, seed=42)
+        edges = _make_edges(
+            [
+                ("A", "B", 1.0),
+                ("A", "C", 1.0),
+                ("B", "C", 1.0),
+                ("D", "E", 1.0),
+                ("D", "F", 1.0),
+                ("E", "F", 1.0),
+            ]
+        )
+        clusters = cluster_graph(
+            edges, LeidenClusterGraphConfig(max_cluster_size=10, use_lcc=False, seed=42)
+        )
 
         assert len(clusters) == 2
         node_sets = _node_sets(clusters)
@@ -68,15 +75,19 @@ class TestClusterGraphBasic:
 
     def test_lcc_filters_to_largest_component(self):
         """With use_lcc=True, only the largest connected component is kept."""
-        edges = _make_edges([
-            ("A", "B", 1.0),
-            ("A", "C", 1.0),
-            ("B", "C", 1.0),
-            ("D", "E", 1.0),
-            ("D", "F", 1.0),
-            ("E", "F", 1.0),
-        ])
-        clusters = cluster_graph(edges, max_cluster_size=10, use_lcc=True, seed=42)
+        edges = _make_edges(
+            [
+                ("A", "B", 1.0),
+                ("A", "C", 1.0),
+                ("B", "C", 1.0),
+                ("D", "E", 1.0),
+                ("D", "F", 1.0),
+                ("E", "F", 1.0),
+            ]
+        )
+        clusters = cluster_graph(
+            edges, LeidenClusterGraphConfig(max_cluster_size=10, use_lcc=True, seed=42)
+        )
 
         assert len(clusters) == 1
         all_nodes = set(clusters[0][3])
@@ -93,51 +104,65 @@ class TestEdgeNormalization:
 
     def test_reversed_edges_produce_same_result(self):
         """Reversing all edge directions should yield identical clusters."""
-        forward = _make_edges([
-            ("A", "B", 1.0),
-            ("A", "C", 1.0),
-            ("B", "C", 1.0),
-            ("D", "E", 1.0),
-            ("D", "F", 1.0),
-            ("E", "F", 1.0),
-        ])
-        backward = _make_edges([
-            ("B", "A", 1.0),
-            ("C", "A", 1.0),
-            ("C", "B", 1.0),
-            ("E", "D", 1.0),
-            ("F", "D", 1.0),
-            ("F", "E", 1.0),
-        ])
+        forward = _make_edges(
+            [
+                ("A", "B", 1.0),
+                ("A", "C", 1.0),
+                ("B", "C", 1.0),
+                ("D", "E", 1.0),
+                ("D", "F", 1.0),
+                ("E", "F", 1.0),
+            ]
+        )
+        backward = _make_edges(
+            [
+                ("B", "A", 1.0),
+                ("C", "A", 1.0),
+                ("C", "B", 1.0),
+                ("E", "D", 1.0),
+                ("F", "D", 1.0),
+                ("F", "E", 1.0),
+            ]
+        )
         clusters_fwd = cluster_graph(
-            forward, max_cluster_size=10, use_lcc=False, seed=42
+            forward,
+            LeidenClusterGraphConfig(max_cluster_size=10, use_lcc=False, seed=42),
         )
         clusters_bwd = cluster_graph(
-            backward, max_cluster_size=10, use_lcc=False, seed=42
+            backward,
+            LeidenClusterGraphConfig(max_cluster_size=10, use_lcc=False, seed=42),
         )
 
         assert _node_sets(clusters_fwd) == _node_sets(clusters_bwd)
 
     def test_duplicate_edges_are_deduped(self):
         """A→B and B→A should be treated as one edge after normalization."""
-        edges = _make_edges([
-            ("A", "B", 1.0),
-            ("B", "A", 2.0),
-            ("A", "C", 1.0),
-            ("B", "C", 1.0),
-        ])
-        clusters = cluster_graph(edges, max_cluster_size=10, use_lcc=False, seed=42)
+        edges = _make_edges(
+            [
+                ("A", "B", 1.0),
+                ("B", "A", 2.0),
+                ("A", "C", 1.0),
+                ("B", "C", 1.0),
+            ]
+        )
+        clusters = cluster_graph(
+            edges, LeidenClusterGraphConfig(max_cluster_size=10, use_lcc=False, seed=42)
+        )
 
         assert len(clusters) == 1
         assert set(clusters[0][3]) == {"A", "B", "C"}
 
     def test_missing_weight_defaults_to_one(self):
         """Edges without a weight column should default to weight 1.0."""
-        edges = pd.DataFrame({
-            "source": ["A", "A", "B"],
-            "target": ["B", "C", "C"],
-        })
-        clusters = cluster_graph(edges, max_cluster_size=10, use_lcc=False, seed=42)
+        edges = pd.DataFrame(
+            {
+                "source": ["A", "A", "B"],
+                "target": ["B", "C", "C"],
+            }
+        )
+        clusters = cluster_graph(
+            edges, LeidenClusterGraphConfig(max_cluster_size=10, use_lcc=False, seed=42)
+        )
 
         assert len(clusters) == 1
         assert set(clusters[0][3]) == {"A", "B", "C"}
@@ -153,28 +178,40 @@ class TestDeterminism:
 
     def test_same_seed_same_result(self):
         """Identical seed should yield identical output."""
-        edges = _make_edges([
-            ("A", "B", 1.0),
-            ("A", "C", 1.0),
-            ("B", "C", 1.0),
-            ("D", "E", 1.0),
-            ("D", "F", 1.0),
-            ("E", "F", 1.0),
-        ])
-        c1 = cluster_graph(edges, max_cluster_size=10, use_lcc=False, seed=123)
-        c2 = cluster_graph(edges, max_cluster_size=10, use_lcc=False, seed=123)
+        edges = _make_edges(
+            [
+                ("A", "B", 1.0),
+                ("A", "C", 1.0),
+                ("B", "C", 1.0),
+                ("D", "E", 1.0),
+                ("D", "F", 1.0),
+                ("E", "F", 1.0),
+            ]
+        )
+        c1 = cluster_graph(
+            edges,
+            LeidenClusterGraphConfig(max_cluster_size=10, use_lcc=False, seed=123),
+        )
+        c2 = cluster_graph(
+            edges,
+            LeidenClusterGraphConfig(max_cluster_size=10, use_lcc=False, seed=123),
+        )
 
         assert c1 == c2
 
     def test_does_not_mutate_input(self):
         """cluster_graph should not modify the input DataFrame."""
-        edges = _make_edges([
-            ("A", "B", 1.0),
-            ("A", "C", 1.0),
-            ("B", "C", 1.0),
-        ])
+        edges = _make_edges(
+            [
+                ("A", "B", 1.0),
+                ("A", "C", 1.0),
+                ("B", "C", 1.0),
+            ]
+        )
         original = edges.copy()
-        cluster_graph(edges, max_cluster_size=10, use_lcc=False, seed=42)
+        cluster_graph(
+            edges, LeidenClusterGraphConfig(max_cluster_size=10, use_lcc=False, seed=42)
+        )
 
         pd.testing.assert_frame_equal(edges, original)
 
@@ -190,7 +227,9 @@ class TestOutputStructure:
     def test_output_tuple_structure(self):
         """Each entry should be (level, community_id, parent, node_list)."""
         edges = _make_edges([("A", "B", 1.0), ("A", "C", 1.0), ("B", "C", 1.0)])
-        clusters = cluster_graph(edges, max_cluster_size=10, use_lcc=False, seed=42)
+        clusters = cluster_graph(
+            edges, LeidenClusterGraphConfig(max_cluster_size=10, use_lcc=False, seed=42)
+        )
 
         for entry in clusters:
             assert len(entry) == 4
@@ -203,15 +242,19 @@ class TestOutputStructure:
 
     def test_level_zero_has_parent_minus_one(self):
         """All level-0 clusters should have parent == -1."""
-        edges = _make_edges([
-            ("A", "B", 1.0),
-            ("A", "C", 1.0),
-            ("B", "C", 1.0),
-            ("D", "E", 1.0),
-            ("D", "F", 1.0),
-            ("E", "F", 1.0),
-        ])
-        clusters = cluster_graph(edges, max_cluster_size=10, use_lcc=False, seed=42)
+        edges = _make_edges(
+            [
+                ("A", "B", 1.0),
+                ("A", "C", 1.0),
+                ("B", "C", 1.0),
+                ("D", "E", 1.0),
+                ("D", "F", 1.0),
+                ("E", "F", 1.0),
+            ]
+        )
+        clusters = cluster_graph(
+            edges, LeidenClusterGraphConfig(max_cluster_size=10, use_lcc=False, seed=42)
+        )
 
         for level, _, parent, _ in clusters:
             if level == 0:
@@ -220,15 +263,19 @@ class TestOutputStructure:
     def test_all_nodes_covered_at_each_level(self):
         """At any given level, the union of all community nodes should
         equal exactly the set of all nodes in the graph for that level."""
-        edges = _make_edges([
-            ("A", "B", 1.0),
-            ("A", "C", 1.0),
-            ("B", "C", 1.0),
-            ("D", "E", 1.0),
-            ("D", "F", 1.0),
-            ("E", "F", 1.0),
-        ])
-        clusters = cluster_graph(edges, max_cluster_size=10, use_lcc=False, seed=42)
+        edges = _make_edges(
+            [
+                ("A", "B", 1.0),
+                ("A", "C", 1.0),
+                ("B", "C", 1.0),
+                ("D", "E", 1.0),
+                ("D", "F", 1.0),
+                ("E", "F", 1.0),
+            ]
+        )
+        clusters = cluster_graph(
+            edges, LeidenClusterGraphConfig(max_cluster_size=10, use_lcc=False, seed=42)
+        )
 
         levels: dict[int, set[str]] = {}
         for level, _, _, nodes in clusters:
@@ -236,9 +283,9 @@ class TestOutputStructure:
 
         all_nodes = {"A", "B", "C", "D", "E", "F"}
         for level, covered_nodes in levels.items():
-            assert covered_nodes == all_nodes, (
-                f"Level {level}: expected {all_nodes}, got {covered_nodes}"
-            )
+            assert (
+                covered_nodes == all_nodes
+            ), f"Level {level}: expected {all_nodes}, got {covered_nodes}"
 
 
 # -------------------------------------------------------------------
@@ -258,9 +305,9 @@ class TestClusterGraphRealData:
         """Pin the expected number of clusters from the fixture data."""
         clusters = cluster_graph(
             relationships,
-            max_cluster_size=10,
-            use_lcc=True,
-            seed=0xDEADBEEF,
+            LeidenClusterGraphConfig(
+                max_cluster_size=10, use_lcc=True, seed=0xDEADBEEF
+            ),
         )
         assert len(clusters) == 122
 
@@ -268,9 +315,9 @@ class TestClusterGraphRealData:
         """Pin the expected number of clusters per level."""
         clusters = cluster_graph(
             relationships,
-            max_cluster_size=10,
-            use_lcc=True,
-            seed=0xDEADBEEF,
+            LeidenClusterGraphConfig(
+                max_cluster_size=10, use_lcc=True, seed=0xDEADBEEF
+            ),
         )
         from collections import Counter
 
@@ -281,9 +328,9 @@ class TestClusterGraphRealData:
         """Spot-check a few known nodes in level-0 clusters."""
         clusters = cluster_graph(
             relationships,
-            max_cluster_size=10,
-            use_lcc=True,
-            seed=0xDEADBEEF,
+            LeidenClusterGraphConfig(
+                max_cluster_size=10, use_lcc=True, seed=0xDEADBEEF
+            ),
         )
         level_0 = [c for c in clusters if c[0] == 0]
         all_level_0_nodes = set()

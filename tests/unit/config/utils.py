@@ -55,11 +55,13 @@ DEFAULT_EMBEDDING_MODELS = {
 
 
 def get_default_graphrag_config() -> GraphRagConfig:
-    return GraphRagConfig(**{
-        **asdict(defs.graphrag_config_defaults),
-        "completion_models": DEFAULT_COMPLETION_MODELS,
-        "embedding_models": DEFAULT_EMBEDDING_MODELS,
-    })
+    return GraphRagConfig(
+        **{
+            **asdict(defs.graphrag_config_defaults),
+            "completion_models": DEFAULT_COMPLETION_MODELS,
+            "embedding_models": DEFAULT_EMBEDDING_MODELS,
+        }
+    )
 
 
 def assert_retry_configs(actual: RetryConfig, expected: RetryConfig) -> None:
@@ -258,9 +260,8 @@ def assert_extract_claims_configs(
 def assert_cluster_graph_configs(
     actual: ClusterGraphConfig, expected: ClusterGraphConfig
 ) -> None:
-    assert actual.max_cluster_size == expected.max_cluster_size
-    assert actual.use_lcc == expected.use_lcc
-    assert actual.seed == expected.seed
+
+    assert actual == expected
 
 
 def assert_local_search_configs(

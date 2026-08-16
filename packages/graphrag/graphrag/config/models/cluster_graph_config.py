@@ -3,19 +3,14 @@
 
 """Parameterization settings for the default configuration."""
 
-from enum import StrEnum
 from typing import Annotated, Literal
 
 from pydantic import BaseModel, Field
 
 from graphrag.config.defaults import graphrag_config_defaults
-
-
-class GraphClusteringAlgorithmType(StrEnum):
-    """Enum for graph clustering algorithm identifiers."""
-
-    LEIDEN = "Leiden"
-    VDSTAR = "VDStar"
+from graphrag.config.models.graph_clustering_config_types import (
+    GraphClusteringAlgorithmType,
+)
 
 
 class BaseClusterGraphConfig[GraphClusteringAlgorithmType](BaseModel):
@@ -36,7 +31,7 @@ class LeidenClusterGraphConfig(BaseClusterGraphConfig):
 
     algorithm: Literal[GraphClusteringAlgorithmType.LEIDEN] = Field(
         description="Leiden graph clustering algorithm configuration.",
-        default=GraphClusteringAlgorithmType.LEIDEN,
+        default=graphrag_config_defaults.cluster_graph.algorithm,
     )
 
     max_cluster_size: int = Field(

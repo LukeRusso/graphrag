@@ -5,7 +5,7 @@
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import ClassVar
+from typing import ClassVar, Literal
 
 from graphrag_cache import CacheType
 from graphrag_chunking.chunk_strategy_type import ChunkerType
@@ -19,6 +19,9 @@ from graphrag.config.enums import (
     AsyncType,
     NounPhraseExtractorType,
     ReportingType,
+)
+from graphrag.config.models.graph_clustering_config_types import (
+    GraphClusteringAlgorithmType,
 )
 from graphrag.index.operations.build_noun_graph.np_extractors.stop_words import (
     EN_STOP_WORDS,
@@ -68,6 +71,9 @@ class ChunkingDefaults:
 class ClusterGraphDefaults:
     """Default values for cluster graph."""
 
+    algorithm: Literal[GraphClusteringAlgorithmType.LEIDEN] = (
+        GraphClusteringAlgorithmType.LEIDEN
+    )
     max_cluster_size: int = 10
     use_lcc: bool = True
     seed: int = 0xDEADBEEF
