@@ -14,6 +14,10 @@ from typing import Any
 import numpy as np
 import pandas as pd
 import pytest
+from graphrag.config.models.cluster_graph_config import (
+    ClusterGraphConfig,
+    LeidenClusterGraphConfig,
+)
 from graphrag.data_model.schemas import COMMUNITIES_FINAL_COLUMNS
 from graphrag.index.workflows.create_communities import (
     _sanitize_row,
@@ -73,7 +77,7 @@ class FakeEntitiesTable(Table):
 async def _run_create_communities(
     title_to_entity_id: dict[str, str],
     relationships: pd.DataFrame,
-    **kwargs: Any,
+    graph_cluster_config: ClusterGraphConfig,
 ) -> pd.DataFrame:
     """Helper that runs create_communities with fake tables and returns all rows as a DataFrame."""
     communities_table = FakeTable()
@@ -81,7 +85,9 @@ async def _run_create_communities(
         {"id": eid, "title": title} for title, eid in title_to_entity_id.items()
     ]
     entities_table = FakeEntitiesTable(entity_rows)
-    await create_communities(communities_table, entities_table, relationships, **kwargs)
+    await create_communities(
+        communities_table, entities_table, relationships, graph_cluster_config
+    )
     return pd.DataFrame(communities_table.rows)
 
 
@@ -148,9 +154,7 @@ class TestOutputSchema:
         result = await _run_create_communities(
             title_to_entity_id,
             relationships,
-            max_cluster_size=10,
-            use_lcc=False,
-            seed=42,
+            LeidenClusterGraphConfig(max_cluster_size=10, use_lcc=False, seed=42),
         )
         assert list(result.columns) == COMMUNITIES_FINAL_COLUMNS
 
@@ -160,9 +164,7 @@ class TestOutputSchema:
         result = await _run_create_communities(
             title_to_entity_id,
             relationships,
-            max_cluster_size=10,
-            use_lcc=False,
-            seed=42,
+            LeidenClusterGraphConfig(max_cluster_size=10, use_lcc=False, seed=42),
         )
         for i, col_name in enumerate(COMMUNITIES_FINAL_COLUMNS):
             assert result.columns[i] == col_name
@@ -182,9 +184,7 @@ class TestMetadataFields:
         result = await _run_create_communities(
             title_to_entity_id,
             relationships,
-            max_cluster_size=10,
-            use_lcc=False,
-            seed=42,
+            LeidenClusterGraphConfig(max_cluster_size=10, use_lcc=False, seed=42),
         )
         for _, row in result.iterrows():
             parsed = uuid.UUID(row["id"])
@@ -196,9 +196,7 @@ class TestMetadataFields:
         result = await _run_create_communities(
             title_to_entity_id,
             relationships,
-            max_cluster_size=10,
-            use_lcc=False,
-            seed=42,
+            LeidenClusterGraphConfig(max_cluster_size=10, use_lcc=False, seed=42),
         )
         for _, row in result.iterrows():
             assert row["title"] == f"Community {row['community']}"
@@ -209,9 +207,7 @@ class TestMetadataFields:
         result = await _run_create_communities(
             title_to_entity_id,
             relationships,
-            max_cluster_size=10,
-            use_lcc=False,
-            seed=42,
+            LeidenClusterGraphConfig(max_cluster_size=10, use_lcc=False, seed=42),
         )
         assert (result["human_readable_id"] == result["community"]).all()
 
@@ -221,9 +217,7 @@ class TestMetadataFields:
         result = await _run_create_communities(
             title_to_entity_id,
             relationships,
-            max_cluster_size=10,
-            use_lcc=False,
-            seed=42,
+            LeidenClusterGraphConfig(max_cluster_size=10, use_lcc=False, seed=42),
         )
         for _, row in result.iterrows():
             assert row["size"] == len(row["entity_ids"])
@@ -234,9 +228,7 @@ class TestMetadataFields:
         result = await _run_create_communities(
             title_to_entity_id,
             relationships,
-            max_cluster_size=10,
-            use_lcc=False,
-            seed=42,
+            LeidenClusterGraphConfig(max_cluster_size=10, use_lcc=False, seed=42),
         )
         from datetime import date
 
@@ -259,9 +251,7 @@ class TestEntityAggregation:
         result = await _run_create_communities(
             title_to_entity_id,
             relationships,
-            max_cluster_size=10,
-            use_lcc=False,
-            seed=42,
+            LeidenClusterGraphConfig(max_cluster_size=10, use_lcc=False, seed=42),
         )
         comm_0 = result[result["community"] == 0].iloc[0]
         comm_1 = result[result["community"] == 1].iloc[0]
@@ -275,9 +265,7 @@ class TestEntityAggregation:
         result = await _run_create_communities(
             title_to_entity_id,
             relationships,
-            max_cluster_size=10,
-            use_lcc=False,
-            seed=42,
+            LeidenClusterGraphConfig(max_cluster_size=10, use_lcc=False, seed=42),
         )
         for _, row in result.iterrows():
             assert isinstance(row["entity_ids"], list)
@@ -299,9 +287,7 @@ class TestRelationshipAggregation:
         result = await _run_create_communities(
             title_to_entity_id,
             relationships,
-            max_cluster_size=10,
-            use_lcc=False,
-            seed=42,
+            LeidenClusterGraphConfig(max_cluster_size=10, use_lcc=False, seed=42),
         )
         comm_0 = result[result["community"] == 0].iloc[0]
         comm_1 = result[result["community"] == 1].iloc[0]
@@ -316,9 +302,7 @@ class TestRelationshipAggregation:
         result = await _run_create_communities(
             title_to_entity_id,
             relationships,
-            max_cluster_size=10,
-            use_lcc=False,
-            seed=42,
+            LeidenClusterGraphConfig(max_cluster_size=10, use_lcc=False, seed=42),
         )
         comm_0 = result[result["community"] == 0].iloc[0]
         comm_1 = result[result["community"] == 1].iloc[0]
@@ -333,9 +317,7 @@ class TestRelationshipAggregation:
         result = await _run_create_communities(
             title_to_entity_id,
             relationships,
-            max_cluster_size=10,
-            use_lcc=False,
-            seed=42,
+            LeidenClusterGraphConfig(max_cluster_size=10, use_lcc=False, seed=42),
         )
         for _, row in result.iterrows():
             assert row["relationship_ids"] == sorted(set(row["relationship_ids"]))
@@ -364,9 +346,7 @@ class TestRelationshipAggregation:
         result = await _run_create_communities(
             title_to_entity_id,
             relationships,
-            max_cluster_size=10,
-            use_lcc=False,
-            seed=42,
+            LeidenClusterGraphConfig(max_cluster_size=10, use_lcc=False, seed=42),
         )
         all_rel_ids = []
         for _, row in result.iterrows():
@@ -391,9 +371,7 @@ class TestParentChildTree:
         result = await _run_create_communities(
             title_to_entity_id,
             relationships,
-            max_cluster_size=10,
-            use_lcc=False,
-            seed=42,
+            LeidenClusterGraphConfig(max_cluster_size=10, use_lcc=False, seed=42),
         )
         lvl0 = result[result["level"] == 0]
         assert (lvl0["parent"] == -1).all()
@@ -404,9 +382,7 @@ class TestParentChildTree:
         result = await _run_create_communities(
             title_to_entity_id,
             relationships,
-            max_cluster_size=10,
-            use_lcc=False,
-            seed=42,
+            LeidenClusterGraphConfig(max_cluster_size=10, use_lcc=False, seed=42),
         )
         for _, row in result.iterrows():
             children = row["children"]
@@ -425,9 +401,9 @@ class TestParentChildTree:
         result = await _run_create_communities(
             title_to_entity_id,
             relationships,
-            max_cluster_size=10,
-            use_lcc=True,
-            seed=0xDEADBEEF,
+            LeidenClusterGraphConfig(
+                max_cluster_size=10, use_lcc=True, seed=0xDEADBEEF
+            ),
         )
         for _, row in result.iterrows():
             children = row["children"]
@@ -470,16 +446,12 @@ class TestLccFiltering:
         result_no_lcc = await _run_create_communities(
             title_to_entity_id,
             relationships,
-            max_cluster_size=10,
-            use_lcc=False,
-            seed=42,
+            LeidenClusterGraphConfig(max_cluster_size=10, use_lcc=False, seed=42),
         )
         result_lcc = await _run_create_communities(
             title_to_entity_id,
             relationships,
-            max_cluster_size=10,
-            use_lcc=True,
-            seed=42,
+            LeidenClusterGraphConfig(max_cluster_size=10, use_lcc=True, seed=42),
         )
         assert len(result_lcc) < len(result_no_lcc)
         assert len(result_lcc) == 1
@@ -508,9 +480,9 @@ class TestRealDataRegression:
         return await _run_create_communities(
             title_to_entity_id,
             relationships,
-            max_cluster_size=10,
-            use_lcc=True,
-            seed=0xDEADBEEF,
+            LeidenClusterGraphConfig(
+                max_cluster_size=10, use_lcc=True, seed=0xDEADBEEF
+            ),
         )
 
     async def test_row_count(self, real_result: pd.DataFrame):
