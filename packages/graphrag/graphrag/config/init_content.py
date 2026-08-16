@@ -91,9 +91,6 @@ extract_graph_nlp:
   text_analyzer:
     extractor_type: {graphrag_config_defaults.extract_graph_nlp.text_analyzer.extractor_type.value} # [regex_english, syntactic_parser, cfg]
 
-cluster_graph:
-  max_cluster_size: {graphrag_config_defaults.cluster_graph.max_cluster_size}
-
 extract_claims:
   enabled: false
   completion_model_id: {graphrag_config_defaults.extract_claims.completion_model_id}
