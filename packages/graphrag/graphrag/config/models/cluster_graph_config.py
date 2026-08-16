@@ -4,7 +4,7 @@
 """Parameterization settings for the default configuration."""
 
 from enum import Enum
-from typing import Literal
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, Field
 
@@ -15,13 +15,16 @@ class GraphClusteringAlgorithm(Enum):
     """Enum for graph clustering algorithm identifiers."""
 
     LEIDEN = "Leiden"
+    VDSTAR = "VDStar"
 
-class BaseClusterGraphConfig(BaseModel):
+
+class BaseClusterGraphConfig[GraphClusteringAlgorithmType: GraphClusteringAlgorithm](
+    BaseModel
+):
     """General shared configuration section for clustering graphs."""
 
-    algorithm: Literal[GraphClusteringAlgorithm.LEIDEN] = Field(
-        ...,
-        description="The unique identifier of the graph clustering algorithm."
+    algorithm: GraphClusteringAlgorithmType = Field(
+        ..., description="The unique identifier of the graph clustering algorithm."
     )
 
     use_lcc: bool = Field(
@@ -29,8 +32,9 @@ class BaseClusterGraphConfig(BaseModel):
         default=graphrag_config_defaults.cluster_graph.use_lcc,
     )
 
+
 class LeidenClusterGraphConfig(BaseClusterGraphConfig):
-    """Configuration section for clustering graphs using Leiden algorithm."""
+    """Configuration section for clustering graphs using the Leiden algorithm."""
 
     algorithm: Literal[GraphClusteringAlgorithm.LEIDEN] = Field(
         description="Leiden graph clustering algorithm configuration.",
@@ -48,4 +52,16 @@ class LeidenClusterGraphConfig(BaseClusterGraphConfig):
     )
 
 
-ClusterGraphConfig = LeidenClusterGraphConfig
+class VDStarClusterGraphConfig(BaseClusterGraphConfig):
+    """Configuration section for clustering graphs using the VDStar algorithm."""
+
+    algorithm: Literal[GraphClusteringAlgorithm.VDSTAR] = Field(
+        description="VDStar graph clustering algorithm configuration.",
+        default=GraphClusteringAlgorithm.VDSTAR,
+    )
+
+
+ClusterGraphConfig = Annotated[
+    LeidenClusterGraphConfig | VDStarClusterGraphConfig,
+    Field(discriminator="algorithm"),
+]
