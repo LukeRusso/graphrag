@@ -21,7 +21,7 @@ authors = [
     {name = "Rodrigo Racanicci", email = "rracanicci@microsoft.com"},
     {name = "Sarah Smith", email = "smithsarah@microsoft.com"},
 ]
-requires-python = ">=3.11,<3.14"
+requires-python = ">=3.12,<3.14"
 
 [dependency-groups]
 dev = [
@@ -145,7 +145,6 @@ ignore_fail = 'return_non_zero'
 
 # Keep all existing tool configurations
 [tool.ruff]
-target-version = "py310"
 extend-include = ["*.ipynb"]
 
 [tool.ruff.format]
