@@ -12,6 +12,8 @@ from graphrag.config.models.graph_clustering_config_types import (
     GraphClusteringAlgorithmType,
 )
 
+INSTANTIATION_ERROR = "BaseClusterGraphConfig cannot be instantiated"
+
 
 class BaseClusterGraphConfig[GraphClusteringAlgorithmType](BaseModel):
     """General shared configuration section for clustering graphs."""
@@ -24,6 +26,12 @@ class BaseClusterGraphConfig[GraphClusteringAlgorithmType](BaseModel):
         description="Whether to use the largest connected component.",
         default=graphrag_config_defaults.cluster_graph.use_lcc,
     )
+
+    def __init__(self, **data):
+        if type(self) is BaseClusterGraphConfig:
+            raise TypeError(INSTANTIATION_ERROR)
+
+        super().__init__(**data)
 
 
 class LeidenClusterGraphConfig(BaseClusterGraphConfig):
