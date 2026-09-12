@@ -61,6 +61,18 @@ class VDStarClusterGraphConfig(BaseClusterGraphConfig):
         default=GraphClusteringAlgorithmType.VDSTAR,
     )
 
+    epsilon_levels: list[float] = Field(
+        description="A list of epsilon values representing the similarity threshold for each level of the hierarchical clustering.",
+        default=[0.25, 0.5, 0.75],
+    )
+
+    mu: int = Field(
+        description="The number of similar edges required to be classified as a core node.",
+        default=2,
+    )
+
+    rho: float = Field(description="The desired error margin.", default=0.05)
+
 
 ClusterGraphConfig = Annotated[
     LeidenClusterGraphConfig | VDStarClusterGraphConfig,

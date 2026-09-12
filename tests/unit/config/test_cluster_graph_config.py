@@ -1,3 +1,5 @@
+# Copyright (C) 2026 luke russo -- ruff complaining
+
 import pytest
 from graphrag.config.models.cluster_graph_config import (
     BaseClusterGraphConfig,
@@ -26,5 +28,14 @@ def test_leiden_cluster_graph_config_defaults():
 
 
 def test_vdstar_cluster_graph_config_defaults():
+    expected_epsilon_levels = [0.25, 0.5, 0.75]
+    expected_mu = 2
+    expected_rho = 0.05
+
     config: VDStarClusterGraphConfig = VDStarClusterGraphConfig()
+
     assert config.algorithm == GraphClusteringAlgorithmType.VDSTAR
+    assert config.use_lcc
+    assert config.epsilon_levels == expected_epsilon_levels
+    assert config.mu == expected_mu
+    assert config.rho == expected_rho
