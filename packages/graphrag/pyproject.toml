@@ -60,6 +60,7 @@ dependencies = [
     "tqdm~=4.67",
     "typing-extensions~=4.12",
     "typer~=0.16",
+    "vdstar",
 ]
 
 [project.scripts]

@@ -61,6 +61,7 @@ graphrag-storage = { workspace = true }
 graphrag-cache = { workspace = true }
 graphrag-vectors = { workspace = true }
 graphrag-llm = { workspace = true }
+vdstar = { git = "https://github.com/LukeRusso/VD-STAR", rev = "main" }
 
 # Keep poethepoet for task management to minimize changes
 [tool.poe.tasks]
