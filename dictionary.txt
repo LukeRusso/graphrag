@@ -1,34 +1,33 @@
 # Team
 Alonso
-Truitt
-Trinh
 Fernández
+Trinh
+Truitt
 
 # Pythonisms
-PYTHONPATH
-pycache
-nopython
-virtualenv
-Pythonisms
-pyproject
-ipynb
-pymodule
-virtualenv
-virtualenvs
-signum
-ospath
-msecs
 asdict
-isna
-getcwd
-fillna
-noqa
 dtypes
-ints
+fillna
+ftype
 genid
+getcwd
+ints
+ipynb
 isinstance
 ismatch
-ftype
+isna
+msecs
+nopython
+noqa
+ospath
+pycache
+pymodule
+pyproject
+Pythonisms
+PYTHONPATH
+signum
+virtualenv
+virtualenvs
 
 # Azure
 abfs
@@ -38,139 +37,139 @@ odata
 
 # NLP Terms
 chunker
-wordnet
-maxent
-punkt
-punct
-lemmatizer
-PROPN
-Syntatic
 ents
 INTJ
+lemmatizer
+maxent
+PROPN
+punct
+punkt
 rels
+Syntatic
+wordnet
 
 # Libraries
-Langchain
-networkx
-graspologic
-graphml
-dataframe
-dataframes
-nltk
-datashaper
-numba
-graphintelligence
-dotenv
-tiktoken
-pydantic
-faiss
-pyarrow
-pyaml
-Chakra
-poethepoet
-pyodbc
-lancedb
-httpx
-pymongo
-uvloop
 aiofiles
 asyncio
-numpy
-pypi
-nbformat
-semversioner
-mkdocs
+Chakra
+dataframe
+dataframes
+datashaper
+dotenv
+faiss
 fnllm
-typer
-spacy
+graphintelligence
+graphml
+graspologic
+httpx
 kwargs
-ollama
+lancedb
+Langchain
 litellm
+mkdocs
+nbformat
+networkx
+nltk
+numba
+numpy
+ollama
+poethepoet
+pyaml
+pyarrow
+pydantic
+pymongo
+pyodbc
+pypi
+semversioner
+spacy
+tiktoken
+typer
+uvloop
 
 # Library Methods
-iterrows
-rprint
-ndarray
-nprobe
-astype
-monkeypatches
-nlist
-ntotal
-quantizer
-arun
-tiktokens
-dtype
-linewidths
-asearch
-iloc
-itertuples
-isin
-nocache
-nbconvert
-levelno
 acompletion
 aembedding
+arun
+asearch
+astype
+dtype
+iloc
+isin
+iterrows
+itertuples
+levelno
+linewidths
+monkeypatches
+nbconvert
+ndarray
+nlist
+nocache
+nprobe
+ntotal
+quantizer
+rprint
+tiktokens
 
 # HTML
+gephi
+Gephi
+Gephi's
+linenums
 nbsp
 onclick
 pymdownx
-linenums
 twemoji
-Gephi
-gephi
-Gephi's
 
 # Verbs
-binarize
-prechunked
-openai
-umap
-concat
-unhot
-groupby
-retryer
 agenerate
+binarize
+concat
 dropna
+groupby
 notna
+openai
+prechunked
+retryer
+umap
+unhot
 upserted
 
 # LLM Terms
+achat
+aembed
 AOAI
 embedder
 llm
 llms
-achat
-aembed
 
 # Galaxy-Brain Terms
-Unipartite
-idempotently
+confusors
 covariate
 covariates
+idempotently
 logit
-confusors
+Unipartite
 
 # Charting
 plottable
 scatterplot
 
 # Resilience Team Terms
-megapipeline
+codebases
 columnwise
-docstore
 datasource
 devcontainers
-codebases
+docstore
+megapipeline
 
 # Microsoft
 MSRC
 
 # Prompt Inputs
-ABILA
 Abila
-ALHAMIA
+ABILA
 Alhamia
+ALHAMIA
 Asadi
 Aurelians
 Bataglani
@@ -179,36 +178,36 @@ Bratinas
 dulce
 Durke
 Firuzabad
-Firuzabad's
 FIRUZABAD
+Firuzabad's
 Krohaara
 KROHAARA
 POKRALLY
 René
 Tazbah
-TIRUZIA
 Tiruzia
+TIRUZIA
 Tiruzia's
 Verdantis
 Verdantis's
 
 # English
 skippable
-upvote
 unconfigured
+upvote
 
 # Misc
 Arxiv
-kwds
-jsons
-txts
 byog
+jsons
+kwds
+txts
 
 # Dulce
 astrotechnician
 epitheg
-unspooled
 unnavigated
+unspooled
 
 # Cosmos DB
 aiohttp
@@ -219,10 +218,11 @@ upserts
 vnext
 
 # Names
-Hochul
 Ashish
+Hochul
 
 #unified-search
 apos
 dearmor
+VDSTAR
 venv
