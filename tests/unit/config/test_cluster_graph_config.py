@@ -39,3 +39,10 @@ def test_vdstar_cluster_graph_config_defaults():
     assert config.epsilon_levels == expected_epsilon_levels
     assert config.mu == expected_mu
     assert config.rho == expected_rho
+    assert config.seed is None
+
+
+def test_vdstar_cluster_graph_config_seed_parses():
+    config: VDStarClusterGraphConfig = VDStarClusterGraphConfig(seed=42)
+
+    assert config.seed == 42

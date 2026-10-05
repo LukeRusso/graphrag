@@ -77,6 +77,7 @@ class ClusterGraphDefaults:
     max_cluster_size: int = 10
     use_lcc: bool = True
     seed: int = 0xDEADBEEF
+    vdstar_seed: int | None = None
 
 
 @dataclass

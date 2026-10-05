@@ -73,6 +73,11 @@ class VDStarClusterGraphConfig(BaseClusterGraphConfig):
 
     rho: float = Field(description="The desired error margin.", default=0.05)
 
+    seed: int | None = Field(
+        description="The seed to use for the clustering, or None for a random seed.",
+        default=graphrag_config_defaults.cluster_graph.vdstar_seed,
+    )
+
 
 ClusterGraphConfig = Annotated[
     LeidenClusterGraphConfig | VDStarClusterGraphConfig,
