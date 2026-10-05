@@ -12,7 +12,6 @@ import numpy as np
 import pandas as pd
 from graphrag_storage.tables.table import Table
 
-from graphrag.config.models.cluster_graph_config import ClusterGraphConfig
 from graphrag.config.models.graph_rag_config import GraphRagConfig
 from graphrag.data_model.data_reader import DataReader
 from graphrag.data_model.schemas import COMMUNITIES_FINAL_COLUMNS
@@ -37,7 +36,7 @@ async def run_workflow(
         context.output_table_provider.open("communities") as communities_table,
     ):
         sample_rows = await create_communities(
-            communities_table, entities_table, relationships, config.cluster_graph
+            communities_table, entities_table, relationships, config
         )
 
     logger.info("Workflow completed: create_communities")
@@ -48,7 +47,7 @@ async def create_communities(
     communities_table: Table,
     entities_table: Table,
     relationships: pd.DataFrame,
-    graph_cluster_config: ClusterGraphConfig,
+    config: GraphRagConfig,
 ) -> list[dict[str, Any]]:
     """Build communities from clustered relationships and stream rows to the table.
 
@@ -61,19 +60,16 @@ async def create_communities(
         relationships: pd.DataFrame
             Relationships DataFrame with source, target, weight,
             text_unit_ids columns.
-        max_cluster_size: int
-            Maximum cluster size for hierarchical Leiden.
-        use_lcc: bool
-            Whether to restrict to the largest connected component.
-        seed: int | None
-            Random seed for deterministic clustering.
+        config: GraphRagConfig
+            Full pipeline config. Carries the clustering config and the
+            storage used to resolve VD-Star state.
 
     Returns
     -------
         list[dict[str, Any]]
             Sample of up to 5 community rows for logging.
     """
-    clusters = cluster_graph(relationships, graph_cluster_config)
+    clusters = await cluster_graph(relationships, config)
 
     title_to_entity_id: dict[str, str] = {}
     async for row in entities_table:

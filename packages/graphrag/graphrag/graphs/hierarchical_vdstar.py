@@ -4,16 +4,23 @@
 """Hierarchical VDStar clustering on edge lists."""
 
 import vdstar
+from graphrag_storage import Storage
 
 from graphrag.config.models.cluster_graph_config import VDStarClusterGraphConfig
 from graphrag.graphs.clustering.base_clustering_algorithm import IClusteringAlgorithm
 from graphrag.graphs.types import Cluster, Edge
+from graphrag.graphs.vdstar_state import VDStarState
 
 
 class HierarchicalVDStar(IClusteringAlgorithm[VDStarClusterGraphConfig]):
     """Hierarchical VDStar clustering on edge lists."""
 
-    def cluster(
+    def __init__(self, config: VDStarClusterGraphConfig, storage: Storage) -> None:
+        """Create the adapter over a VD-Star state namespace."""
+        super().__init__(config)
+        self._state = VDStarState(storage)
+
+    async def cluster(
         self,
         edges: list[Edge],
     ) -> list[Cluster]:

@@ -26,6 +26,8 @@ from graphrag.index.workflows.create_communities import (
 from graphrag_storage.tables.csv_table import CSVTable
 from graphrag_storage.tables.table import Table
 
+from tests.unit.graph_utils import cfg
+
 
 class FakeTable(CSVTable):
     """In-memory table that collects written rows for test assertions."""
@@ -86,7 +88,10 @@ async def _run_create_communities(
     ]
     entities_table = FakeEntitiesTable(entity_rows)
     await create_communities(
-        communities_table, entities_table, relationships, graph_cluster_config
+        communities_table,
+        entities_table,
+        relationships,
+        cfg(graph_cluster_config),
     )
     return pd.DataFrame(communities_table.rows)
 

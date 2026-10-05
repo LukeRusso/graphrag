@@ -8,9 +8,7 @@ from typing import TYPE_CHECKING
 
 import pandas as pd
 
-from graphrag.config.models.cluster_graph_config import (
-    ClusterGraphConfig,
-)
+from graphrag.config.models.graph_rag_config import GraphRagConfig
 from graphrag.graphs.clustering.clustering_algorithm_factory import (
     ClusteringAlgorithmFactory,
 )
@@ -27,15 +25,15 @@ Communities = list[Cluster]
 logger = logging.getLogger(__name__)
 
 
-def cluster_graph(edges: pd.DataFrame, config: ClusterGraphConfig) -> Communities:
+async def cluster_graph(edges: pd.DataFrame, config: GraphRagConfig) -> Communities:
     """Apply a hierarchical clustering algorithm to a relationships DataFrame."""
     edge_df = _normalize_edges(edges)
-    if config.use_lcc:
+    if config.cluster_graph.use_lcc:
         edge_df = stable_lcc(edge_df)
     edge_list = _df_to_edge_list(edge_df)
 
     cluster_algo: IClusteringAlgorithm = ClusteringAlgorithmFactory.from_config(config)
-    return cluster_algo.cluster(edges=edge_list)
+    return await cluster_algo.cluster(edges=edge_list)
 
 
 def _normalize_edges(edges: pd.DataFrame) -> pd.DataFrame:

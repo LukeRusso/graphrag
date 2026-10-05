@@ -16,6 +16,7 @@ from graphrag.config.models.cluster_graph_config import (
 from graphrag.graphs.hierarchical_leiden import HierarchicalLeiden
 from graphrag.graphs.hierarchical_vdstar import HierarchicalVDStar
 from graphrag.graphs.types import Cluster, Edge
+from graphrag_storage.memory_storage import MemoryStorage
 
 from tests.unit.graph_utils import by_level, tiered_graph, triangle
 
@@ -33,7 +34,7 @@ def _leiden() -> HierarchicalLeiden:
 
 def _vdstar() -> HierarchicalVDStar:
     return HierarchicalVDStar(
-        VDStarClusterGraphConfig(epsilon_levels=[0.25, 0.5, 0.75])
+        VDStarClusterGraphConfig(epsilon_levels=[0.25, 0.5, 0.75]), MemoryStorage()
     )
 
 
@@ -43,7 +44,7 @@ ADAPTERS = [
 ]
 
 
-def _leiden_multi_level() -> list[Cluster]:
+async def _leiden_multi_level() -> list[Cluster]:
     relationships = pd.read_parquet("tests/verbs/data/relationships.parquet")
     edges = [
         Edge(str(source), str(target), float(weight))
@@ -54,16 +55,16 @@ def _leiden_multi_level() -> list[Cluster]:
             strict=False,
         )
     ]
-    return HierarchicalLeiden(
+    return await HierarchicalLeiden(
         LeidenClusterGraphConfig(
             max_cluster_size=MAX_CLUSTER_SIZE, use_lcc=False, seed=SEED
         )
     ).cluster(edges)
 
 
-def _vdstar_multi_level(epsilon_levels: list[float]) -> list[Cluster]:
-    return HierarchicalVDStar(
-        VDStarClusterGraphConfig(epsilon_levels=epsilon_levels)
+async def _vdstar_multi_level(epsilon_levels: list[float]) -> list[Cluster]:
+    return await HierarchicalVDStar(
+        VDStarClusterGraphConfig(epsilon_levels=epsilon_levels), MemoryStorage()
     ).cluster(tiered_graph())
 
 
@@ -83,34 +84,34 @@ MULTI_LEVEL_ADAPTERS = [
 class TestAdapterOutputContract:
     """Invariants every IClusteringAlgorithm implementation must uphold."""
 
-    def test_returns_clusters(self, make_clusters):
-        clusters = make_clusters()
+    async def test_returns_clusters(self, make_clusters):
+        clusters = await make_clusters()
 
         assert isinstance(clusters, list)
         assert clusters
         assert all(isinstance(c, Cluster) for c in clusters)
 
-    def test_cluster_ids_are_globally_unique(self, make_clusters):
-        ids = [c.cluster_id for c in make_clusters()]
+    async def test_cluster_ids_are_globally_unique(self, make_clusters):
+        ids = [c.cluster_id for c in await make_clusters()]
 
         assert len(ids) == len(set(ids))
 
-    def test_cluster_ids_are_non_negative_ints(self, make_clusters):
-        clusters = make_clusters()
+    async def test_cluster_ids_are_non_negative_ints(self, make_clusters):
+        clusters = await make_clusters()
 
         assert all(isinstance(c.cluster_id, int) for c in clusters)
         assert min(c.cluster_id for c in clusters) >= 0
 
-    def test_nodes_are_strings(self, make_clusters):
-        clusters = make_clusters()
+    async def test_nodes_are_strings(self, make_clusters):
+        clusters = await make_clusters()
 
         for cluster in clusters:
             assert isinstance(cluster.nodes, list)
             assert cluster.nodes
             assert all(isinstance(node, str) for node in cluster.nodes)
 
-    def test_node_belongs_to_at_most_one_cluster_per_level(self, make_clusters):
-        grouped = by_level(make_clusters())
+    async def test_node_belongs_to_at_most_one_cluster_per_level(self, make_clusters):
+        grouped = by_level(await make_clusters())
 
         for level, clusters in grouped.items():
             members = [node for c in clusters for node in c.nodes]
@@ -121,8 +122,8 @@ class TestAdapterDisconnectionContract:
     """Disconnected components must not be merged by any adapter."""
 
     @pytest.mark.parametrize("make_adapter", ADAPTERS)
-    def test_disconnected_components_do_not_merge(self, make_adapter):
-        clusters = make_adapter().cluster(triangle("") + triangle("2"))
+    async def test_disconnected_components_do_not_merge(self, make_adapter):
+        clusters = await make_adapter().cluster(triangle("") + triangle("2"))
         node_sets = [set(c.nodes) for c in clusters]
 
         assert {"A", "B", "C"} in node_sets
@@ -133,13 +134,13 @@ class TestAdapterDisconnectionContract:
 class TestHierarchyContract:
     """Invariants that hold for any multi-level clustering output."""
 
-    def test_levels_are_contiguous_from_zero(self, make_clusters):
-        levels = sorted(by_level(make_clusters()))
+    async def test_levels_are_contiguous_from_zero(self, make_clusters):
+        levels = sorted(by_level(await make_clusters()))
 
         assert levels == list(range(len(levels)))
 
-    def test_level_zero_has_the_largest_mean_cluster_size(self, make_clusters):
-        grouped = by_level(make_clusters())
+    async def test_level_zero_has_the_largest_mean_cluster_size(self, make_clusters):
+        grouped = by_level(await make_clusters())
 
         mean_sizes = {
             level: sum(len(c.nodes) for c in group) / len(group)
@@ -148,8 +149,8 @@ class TestHierarchyContract:
 
         assert mean_sizes[0] == max(mean_sizes.values())
 
-    def test_largest_cluster_shrinks_as_level_increases(self, make_clusters):
-        grouped = by_level(make_clusters())
+    async def test_largest_cluster_shrinks_as_level_increases(self, make_clusters):
+        grouped = by_level(await make_clusters())
 
         if len(grouped) < 2:
             pytest.skip("a single level has nothing to compare against")
@@ -159,16 +160,16 @@ class TestHierarchyContract:
 
         assert largest_at_level_zero > largest_at_last_level
 
-    def test_parent_ids_reference_coarser_level(self, make_clusters):
-        clusters = make_clusters()
+    async def test_parent_ids_reference_coarser_level(self, make_clusters):
+        clusters = await make_clusters()
         level_of = {c.cluster_id: c.level for c in clusters}
 
         for cluster in clusters:
             if cluster.level > 0:
                 assert level_of[cluster.parent_cluster_id] == cluster.level - 1
 
-    def test_parent_minus_one_iff_level_zero(self, make_clusters):
-        clusters = make_clusters()
+    async def test_parent_minus_one_iff_level_zero(self, make_clusters):
+        clusters = await make_clusters()
 
         for cluster in clusters:
             assert (cluster.parent_cluster_id == -1) == (cluster.level == 0)
@@ -177,11 +178,11 @@ class TestHierarchyContract:
 class TestAdapterCoverage:
     """Testing node coverage"""
 
-    def test_leiden_covers_all_nodes_at_level_zero(self):
+    async def test_leiden_covers_all_nodes_at_level_zero(self):
         edges = triangle("") + triangle("2")
         input_nodes = {e.source for e in edges} | {e.dest for e in edges}
 
-        clusters = _leiden().cluster(edges)
+        clusters = await _leiden().cluster(edges)
         covered = {node for c in clusters if c.level == 0 for node in c.nodes}
 
         assert covered == input_nodes

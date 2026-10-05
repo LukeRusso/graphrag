@@ -10,6 +10,9 @@ GRAPH_BLOB_KEY = "graph_state"
 ID_MAP_KEY = "node_id_map"
 """Storage key for the ``str -> int`` node id map (JSON)."""
 
+VDSTAR_STATE_NAMESPACE = "vdstar"
+"""Storage namespace holding the VD-STAR state pair."""
+
 
 class VDStarState:
     """Read and write the two-key VD-STAR state pair through ``Storage``.

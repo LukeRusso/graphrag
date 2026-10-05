@@ -11,6 +11,7 @@ import pytest
 from graphrag.config.models.cluster_graph_config import VDStarClusterGraphConfig
 from graphrag.graphs.hierarchical_vdstar import HierarchicalVDStar
 from graphrag.graphs.types import Cluster, Edge
+from graphrag_storage.memory_storage import MemoryStorage
 
 from tests.unit.graph_utils import by_level, triangle
 
@@ -27,17 +28,17 @@ def _two_triangles() -> list[Edge]:
     return triangle("") + triangle("2")
 
 
-def _run(edges: list[Edge], **config_kwargs) -> list[Cluster]:
+async def _run(edges: list[Edge], **config_kwargs) -> list[Cluster]:
     config = VDStarClusterGraphConfig(**config_kwargs)
-    return HierarchicalVDStar(config).cluster(edges)
+    return await HierarchicalVDStar(config, MemoryStorage()).cluster(edges)
 
 
 class TestEpsLevelMapping:
     """the eps list determines the level count."""
 
     @pytest.mark.parametrize("epsilon_levels", EPSILON_LEVEL_PARAMS)
-    def test_every_requested_eps_produces_a_level(self, epsilon_levels):
-        clusters = _run(_two_triangles(), epsilon_levels=epsilon_levels)
+    async def test_every_requested_eps_produces_a_level(self, epsilon_levels):
+        clusters = await _run(_two_triangles(), epsilon_levels=epsilon_levels)
 
         expected_levels = list(range(len(epsilon_levels)))
 
@@ -47,10 +48,10 @@ class TestEpsLevelMapping:
 class TestInvalidInput:
     """Pin the failure modes the vdstar binding raises."""
 
-    def test_empty_edge_list_raises(self):
+    async def test_empty_edge_list_raises(self):
         with pytest.raises(ValueError, match="n must be a positive integer"):
-            _run([], epsilon_levels=[0.5])
+            await _run([], epsilon_levels=[0.5])
 
-    def test_single_node_graph_raises(self):
+    async def test_single_node_graph_raises(self):
         with pytest.raises(ValueError, match="mu must be an integer"):
-            _run([Edge("A", "A", 1.0)], epsilon_levels=[0.5])
+            await _run([Edge("A", "A", 1.0)], epsilon_levels=[0.5])

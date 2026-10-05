@@ -4,7 +4,31 @@
 
 from collections import defaultdict
 
+from graphrag.config.models.cluster_graph_config import (
+    ClusterGraphConfig,
+    LeidenClusterGraphConfig,
+    VDStarClusterGraphConfig,
+)
+from graphrag.config.models.graph_rag_config import GraphRagConfig
 from graphrag.graphs.types import Cluster, Edge
+
+
+def vdstar_config() -> VDStarClusterGraphConfig:
+    """A VD-Star config with a single small epsilon level."""
+    return VDStarClusterGraphConfig(epsilon_levels=[0.5], use_lcc=False)
+
+
+def leiden_config() -> LeidenClusterGraphConfig:
+    """A deterministic Leiden config."""
+    return LeidenClusterGraphConfig(max_cluster_size=10, use_lcc=False, seed=42)
+
+
+def cfg(cluster_graph: ClusterGraphConfig) -> GraphRagConfig:
+    """Wrap a clustering config in the top-level pipeline config."""
+    return GraphRagConfig(
+        cluster_graph=cluster_graph,
+        update_output_storage={"type": "memory"},
+    )
 
 
 def triangle(name: str) -> list[Edge]:

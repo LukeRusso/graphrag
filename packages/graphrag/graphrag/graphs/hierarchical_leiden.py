@@ -16,7 +16,7 @@ from packages.graphrag.graphrag.graphs.clustering.base_clustering_algorithm impo
 class HierarchicalLeiden(IClusteringAlgorithm[LeidenClusterGraphConfig]):
     """Hierarchical Leiden clustering on edge lists."""
 
-    def cluster(
+    async def cluster(
         self,
         edges: list[Edge],
     ) -> list[Cluster]:

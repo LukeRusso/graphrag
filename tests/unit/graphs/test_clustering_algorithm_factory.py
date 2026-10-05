@@ -1,24 +1,30 @@
 # Copyright (C) 2026 luke russo -- ruff complaining
 
+from typing import cast
+
 import pytest
 from graphrag.config.models.cluster_graph_config import (
+    ClusterGraphConfig,
     LeidenClusterGraphConfig,
     VDStarClusterGraphConfig,
 )
+from graphrag.config.models.graph_rag_config import GraphRagConfig
 from graphrag.graphs.clustering.clustering_algorithm_factory import (
     ClusteringAlgorithmFactory,
 )
 from graphrag.graphs.hierarchical_leiden import HierarchicalLeiden
 from graphrag.graphs.hierarchical_vdstar import HierarchicalVDStar
 
+from tests.unit.graph_utils import cfg
+
 
 def test_leiden_config_returns_leiden():
-    config = ClusteringAlgorithmFactory.from_config(LeidenClusterGraphConfig())
+    config = ClusteringAlgorithmFactory.from_config(cfg(LeidenClusterGraphConfig()))
     assert isinstance(config, HierarchicalLeiden)
 
 
 def test_vdstar_config_returns_vdstar():
-    config = ClusteringAlgorithmFactory.from_config(VDStarClusterGraphConfig())
+    config = ClusteringAlgorithmFactory.from_config(cfg(VDStarClusterGraphConfig()))
     assert isinstance(config, HierarchicalVDStar)
 
 
@@ -28,7 +34,7 @@ def test_vdstar_config_is_passed_through():
     rho = 0.02
 
     algorithm = ClusteringAlgorithmFactory.from_config(
-        VDStarClusterGraphConfig(epsilon_levels=epsilon_levels, mu=mu, rho=rho)
+        cfg(VDStarClusterGraphConfig(epsilon_levels=epsilon_levels, mu=mu, rho=rho))
     )
 
     assert algorithm.config.epsilon_levels == epsilon_levels
@@ -37,8 +43,11 @@ def test_vdstar_config_is_passed_through():
 
 
 def test_unknown_config_throws():
+    config = GraphRagConfig()
+    config.cluster_graph = cast("ClusterGraphConfig", "not-a-clustering-config")
+
     with pytest.raises(
         ValueError,
         match="Unhandled graph clustering algorithm type during algorithm object instantiation",
     ):
-        ClusteringAlgorithmFactory.from_config({})
+        ClusteringAlgorithmFactory.from_config(config)

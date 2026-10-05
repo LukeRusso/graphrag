@@ -11,5 +11,5 @@ class IClusteringAlgorithm[ClusterGraphConfig](ABC):
     config: ClusterGraphConfig
 
     @abstractmethod
-    def cluster(self, edges: list[Edge]) -> list[Cluster]:
+    async def cluster(self, edges: list[Edge]) -> list[Cluster]:
         """Perform hierarchical clustering on input graph."""
