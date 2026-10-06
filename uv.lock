@@ -3945,7 +3945,7 @@ wheels = [
 [[package]]
 name = "vdstar"
 version = "0.1.0"
-source = { git = "https://github.com/LukeRusso/VD-STAR?rev=main#d3a0b7b9cba2e088b6031e13198dcfd018162544" }
+source = { git = "https://github.com/LukeRusso/VD-STAR?rev=main#03bfbbe8a79b98e455dd63f646b0ff7c6f0bca8c" }
 
 [[package]]
 name = "wasabi"
