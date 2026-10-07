@@ -2,9 +2,8 @@
 
 """Tests specific to VDStar clustering adapter.
 
-Everything here goes through the public cluster() entry point. The shared
-output contract that every clustering algorithm must satisfy is pinned in
-test_clustering_algorithms.py.
+The shared output contract that every clustering algorithm must satisfy is
+pinned in test_clustering_algorithms.py.
 """
 
 import pytest
@@ -28,9 +27,20 @@ def _two_triangles() -> list[Edge]:
     return triangle("") + triangle("2")
 
 
-async def _run(edges: list[Edge], **config_kwargs) -> list[Cluster]:
+async def _cluster(edges: list[Edge], **config_kwargs) -> list[Cluster]:
     config = VDStarClusterGraphConfig(**config_kwargs)
     return await HierarchicalVDStar(config, MemoryStorage()).cluster(edges)
+
+
+def _get_vdstar(storage: MemoryStorage, **config_kwargs) -> HierarchicalVDStar:
+    config = VDStarClusterGraphConfig(
+        epsilon_levels=[0.5], use_lcc=False, **config_kwargs
+    )
+    return HierarchicalVDStar(config, storage)
+
+
+def _all_nodes(clusters: list[Cluster]) -> set[str]:
+    return {node for cluster in clusters for node in cluster.nodes}
 
 
 class TestEpsLevelMapping:
@@ -38,7 +48,7 @@ class TestEpsLevelMapping:
 
     @pytest.mark.parametrize("epsilon_levels", EPSILON_LEVEL_PARAMS)
     async def test_every_requested_eps_produces_a_level(self, epsilon_levels):
-        clusters = await _run(_two_triangles(), epsilon_levels=epsilon_levels)
+        clusters = await _cluster(_two_triangles(), epsilon_levels=epsilon_levels)
 
         expected_levels = list(range(len(epsilon_levels)))
 
@@ -46,12 +56,56 @@ class TestEpsLevelMapping:
 
 
 class TestInvalidInput:
-    """Pin the failure modes the vdstar binding raises."""
+    """Pin the input validation actually enforced."""
 
     async def test_empty_edge_list_raises(self):
-        with pytest.raises(ValueError, match="n must be a positive integer"):
-            await _run([], epsilon_levels=[0.5])
+        with pytest.raises(IndexError, match="vertex count must be >= 1"):
+            await _cluster([], epsilon_levels=[0.5])
 
-    async def test_single_node_graph_raises(self):
-        with pytest.raises(ValueError, match="mu must be an integer"):
-            await _run([Edge("A", "A", 1.0)], epsilon_levels=[0.5])
+
+class TestIncrementalClustering:
+    """Testing functionality specific to incremental clustering (update flow)."""
+
+    async def test_incremental_without_prior_state_raises(self):
+        vdstar = _get_vdstar(MemoryStorage())
+
+        with pytest.raises(RuntimeError, match="no persisted VD-Star state"):
+            await vdstar.cluster_incremental([Edge("A", "B", 1.0)], [])
+
+    async def test_incremental_returns_clusters_only(self):
+        storage = MemoryStorage()
+        vdstar = _get_vdstar(storage)
+
+        await vdstar.cluster(_two_triangles())
+        clusters = await vdstar.cluster_incremental([Edge("A", "2A", 1.0)], [])
+
+        assert clusters
+        assert all(isinstance(cluster, Cluster) for cluster in clusters)
+
+    async def test_incremental_absorbing_a_delta_keeps_all_nodes(self):
+        storage = MemoryStorage()
+        vdstar = _get_vdstar(storage)
+
+        await vdstar.cluster(_two_triangles())
+        clusters = await vdstar.cluster_incremental([Edge("A", "2A", 1.0)], [])
+
+        assert _all_nodes(clusters) == {edge.source for edge in _two_triangles()} | {
+            edge.dest for edge in _two_triangles()
+        }
+
+    async def test_resume_keeps_existing_ids_and_adds_new_nodes_on_fresh_ids(self):
+        """A resumed update renumbers nothing and gives new nodes fresh ids."""
+        storage = MemoryStorage()
+        vdstar = _get_vdstar(storage)
+
+        await vdstar.cluster(triangle(""))
+        ids_before = vdstar.node_id_map
+        highest_before = max(ids_before.values())
+
+        await vdstar.cluster_incremental(
+            [Edge("D", "A", 1.0), Edge("D", "B", 1.0), Edge("D", "C", 1.0)], []
+        )
+
+        assert vdstar.node_id_map["D"] == highest_before + 1
+        for node, engine_id in ids_before.items():
+            assert vdstar.node_id_map[node] == engine_id

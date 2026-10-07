@@ -1,16 +1,15 @@
 # Copyright (c) 2024 Microsoft Corporation.
 # Licensed under the MIT License
 
+"""Hierarchical Leiden clustering on edge lists."""
 
 from typing import Any
 
 import graspologic_native as gn
 
 from graphrag.config.models.cluster_graph_config import LeidenClusterGraphConfig
+from graphrag.graphs.clustering.base_clustering_algorithm import IClusteringAlgorithm
 from graphrag.graphs.types import Cluster, Edge
-from packages.graphrag.graphrag.graphs.clustering.base_clustering_algorithm import (
-    IClusteringAlgorithm,
-)
 
 
 class HierarchicalLeiden(IClusteringAlgorithm[LeidenClusterGraphConfig]):

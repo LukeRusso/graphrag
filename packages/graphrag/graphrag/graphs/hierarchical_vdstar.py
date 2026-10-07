@@ -7,12 +7,14 @@ import vdstar
 from graphrag_storage import Storage
 
 from graphrag.config.models.cluster_graph_config import VDStarClusterGraphConfig
-from graphrag.graphs.clustering.base_clustering_algorithm import IClusteringAlgorithm
+from graphrag.graphs.clustering.base_clustering_algorithm import (
+    IIncrementalClusteringAlgorithm,
+)
 from graphrag.graphs.types import Cluster, Edge
 from graphrag.graphs.vdstar_state import VDStarState
 
 
-class HierarchicalVDStar(IClusteringAlgorithm[VDStarClusterGraphConfig]):
+class HierarchicalVDStar(IIncrementalClusteringAlgorithm[VDStarClusterGraphConfig]):
     """Hierarchical VDStar clustering on edge lists."""
 
     def __init__(self, config: VDStarClusterGraphConfig, storage: Storage) -> None:
@@ -24,21 +26,77 @@ class HierarchicalVDStar(IClusteringAlgorithm[VDStarClusterGraphConfig]):
         self,
         edges: list[Edge],
     ) -> list[Cluster]:
-        """Run VDStar clustering on an edge list."""
-        vdstar_edges: list[tuple[int, int]] = self._convert_graphrag_to_vdstar_edges(
-            edges
-        )
+        """Run VDStar clustering on an edge list, publishing state for a later update."""
+        self._reset_id_maps()
 
-        vdstar_cluster_results: list[list[list[int]]] = [
-            vdstar.cluster(
-                self._next_node_id - 1,
-                vdstar_edges,
-                eps,
-                self.config.mu,
-                self.config.rho,
+        for edge in edges:
+            self._vdstar_vertex_id_for_node(None, edge.source)
+            self._vdstar_vertex_id_for_node(None, edge.dest)
+
+        node_count = len(self._str_to_int_id_map)
+
+        graph = vdstar.Graph(node_count, self.config.rho, self.config.seed)
+
+        for edge in edges:
+            graph.insert_edge(
+                self._str_to_int_id_map[edge.source],
+                self._str_to_int_id_map[edge.dest],
             )
+
+        return await self._query_and_save(graph)
+
+    async def cluster_incremental(
+        self,
+        edges_added: list[Edge],
+        edges_removed: list[Edge],
+    ) -> list[Cluster]:
+        """Update the clustering given the provided graph changes."""
+        graph = await self._load_graph()
+
+        for edge in edges_removed:
+            graph.remove_edge(
+                self._str_to_int_id_map[edge.source], self._str_to_int_id_map[edge.dest]
+            )
+
+        for edge in edges_added:
+            self._add_edge(graph, edge)
+
+        return await self._query_and_save(graph)
+
+    async def _load_graph(self) -> vdstar.Graph:
+        """Read the persisted graph and rebuild the id maps."""
+        state = await self._state.load()
+
+        if state is None:
+            error_msg = (
+                "Cannot run incremental clustering: no persisted VD-Star state. "
+            )
+            raise RuntimeError(error_msg)
+
+        blob, str_to_int_id_map = state
+
+        graph = vdstar.GraphStore.read_bytes(blob)
+
+        self._str_to_int_id_map = str_to_int_id_map
+        self._int_to_str_id_map = {
+            int_id: node_id for node_id, int_id in str_to_int_id_map.items()
+        }
+        # VDSTAR is the authority on the id space: ids are 1-based and it
+        # never reuses them, so the next id is one past its vertex count.
+        self._next_node_id = graph.get_vertex_num() + 1
+
+        return graph
+
+    async def _query_and_save(self, graph: vdstar.Graph) -> list[Cluster]:
+        """Query every epsilon level, persist the state pair, and convert the results."""
+        vdstar_cluster_results: list[list[list[int]]] = [
+            graph.cluster(eps, self.config.mu)
             for eps in sorted(self.config.epsilon_levels)
         ]
+
+        await self._state.save(
+            vdstar.GraphStore.write_bytes(graph), dict(self._str_to_int_id_map)
+        )
 
         return self._convert_vdstar_cluster_results_to_hierarchical_graphrag_clusters(
             vdstar_cluster_results
@@ -86,29 +144,45 @@ class HierarchicalVDStar(IClusteringAlgorithm[VDStarClusterGraphConfig]):
 
         return hierarchical_graphrag_clusters
 
-    def _convert_graphrag_to_vdstar_edges(
-        self, edges: list[Edge]
-    ) -> list[tuple[int, int]]:
+    def _reset_id_maps(self) -> None:
+        """Start empty, for a fresh build."""
         self._str_to_int_id_map: dict[str, int] = {}
         self._int_to_str_id_map: dict[int, str] = {}
         self._next_node_id: int = 1
 
-        for e in edges:
-            self._add_new_id_mappings_for_edge(e)
+    @property
+    def node_id_map(self) -> dict[str, int]:
+        """A copy of the GraphRAG-node-id -> VDSTAR-id map."""
+        return dict(self._str_to_int_id_map)
 
-        return [
-            (self._str_to_int_id_map[e.source], self._str_to_int_id_map[e.dest])
-            for e in edges
-        ]
+    def _add_edge(self, graph: vdstar.Graph, edge: Edge) -> None:
+        """Register both endpoints and insert the edge into the engine."""
+        source_id = self._vdstar_vertex_id_for_node(graph, edge.source)
+        dest_id = self._vdstar_vertex_id_for_node(graph, edge.dest)
 
-    def _add_new_id_mappings_for_edge(self, edge: Edge) -> None:
-        """Add id mappings for the nodes of an edge."""
-        self._add_new_id_mapping_for_node(edge.source)
-        self._add_new_id_mapping_for_node(edge.dest)
+        graph.insert_edge(source_id, dest_id)
 
-    def _add_new_id_mapping_for_node(self, node_id: str) -> None:
-        """Add an id mapping for a single node id."""
-        if node_id not in self._str_to_int_id_map:
-            self._str_to_int_id_map[node_id] = self._next_node_id
-            self._int_to_str_id_map[self._next_node_id] = node_id
-            self._next_node_id += 1
+    def _vdstar_vertex_id_for_node(
+        self, graph: vdstar.Graph | None, node_id: str
+    ) -> int:
+        """Return the vdstar vertex id for a given GraphRAG node, adding a vertex when new.
+
+        Pre-existing nodes keep their persisted vertex id. New
+        nodes draw a fresh id (and a fresh vertex) from the VD-STAR engine.
+
+        ``graph`` may be ``None`` for the pre-pass that only assigns GraphRAG
+        node -> vdstar vertex ids before the graph exists.
+        """
+        if node_id in self._str_to_int_id_map:
+            return self._str_to_int_id_map[node_id]
+
+        int_id: int = self._next_node_id
+
+        if graph is not None:
+            graph.add_vertex()
+
+        self._str_to_int_id_map[node_id] = int_id
+        self._int_to_str_id_map[int_id] = node_id
+        self._next_node_id += 1
+
+        return int_id
