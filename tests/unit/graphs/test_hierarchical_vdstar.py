@@ -7,9 +7,11 @@ pinned in test_clustering_algorithms.py.
 """
 
 import pytest
+import vdstar_core as vdstar
 from graphrag.config.models.cluster_graph_config import VDStarClusterGraphConfig
 from graphrag.graphs.hierarchical_vdstar import HierarchicalVDStar
 from graphrag.graphs.types import Cluster, Edge
+from graphrag.graphs.vdstar_state import GRAPH_BLOB_KEY
 from graphrag_storage.memory_storage import MemoryStorage
 
 from tests.unit.graph_utils import by_level, triangle
@@ -41,6 +43,12 @@ def _get_vdstar(storage: MemoryStorage, **config_kwargs) -> HierarchicalVDStar:
 
 def _all_nodes(clusters: list[Cluster]) -> set[str]:
     return {node for cluster in clusters for node in cluster.nodes}
+
+
+async def _vdstar_vertex_count(storage: MemoryStorage) -> int:
+    """The vertex count of the graph the engine last persisted."""
+    blob = await storage.get(GRAPH_BLOB_KEY, as_bytes=True)
+    return vdstar.GraphStore.read_bytes(blob).get_vertex_num()
 
 
 class TestEpsLevelMapping:
@@ -109,3 +117,20 @@ class TestIncrementalClustering:
         assert vdstar.node_id_map["D"] == highest_before + 1
         for node, engine_id in ids_before.items():
             assert vdstar.node_id_map[node] == engine_id
+
+    async def test_new_node_ids_come_from_the_vdstar_engine(self):
+        storage = MemoryStorage()
+        vdstar = _get_vdstar(storage)
+
+        await vdstar.cluster(triangle(""))
+        ids_before = vdstar.node_id_map
+
+        resumed = _get_vdstar(storage)
+        await resumed.cluster_incremental([Edge("D", "A", 1.0)], [])
+        await resumed.cluster_incremental([Edge("E", "A", 1.0)], [])
+
+        assert resumed.node_id_map["D"] == ids_before["C"] + 1
+        assert resumed.node_id_map["E"] == resumed.node_id_map["D"] + 1
+        for node, engine_id in ids_before.items():
+            assert resumed.node_id_map[node] == engine_id
+        assert resumed.node_id_map["E"] == await _vdstar_vertex_count(storage)

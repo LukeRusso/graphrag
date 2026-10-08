@@ -179,7 +179,7 @@ class HierarchicalVDStar(IIncrementalClusteringAlgorithm[VDStarClusterGraphConfi
         int_id: int = self._next_node_id
 
         if graph is not None:
-            graph.add_vertex()
+            int_id = graph.add_vertex()
 
         self._str_to_int_id_map[node_id] = int_id
         self._int_to_str_id_map[int_id] = node_id
