@@ -1,6 +1,7 @@
 # Copyright (C) 2026 luke russo -- ruff complaining
 
 import pytest
+from graphrag.config.enums import CommunityUpdateMode
 from graphrag.config.models.cluster_graph_config import (
     BaseClusterGraphConfig,
     LeidenClusterGraphConfig,
@@ -9,6 +10,7 @@ from graphrag.config.models.cluster_graph_config import (
 from graphrag.config.models.graph_clustering_config_types import (
     GraphClusteringAlgorithmType,
 )
+from pydantic import ValidationError
 
 
 def test_base_cluster_graph_config_cant_be_initialised():
@@ -25,6 +27,7 @@ def test_leiden_cluster_graph_config_defaults():
     assert config.use_lcc
     assert config.max_cluster_size == 10
     assert config.seed == 0xDEADBEEF
+    assert config.update_mode == CommunityUpdateMode.Additive
 
 
 def test_vdstar_cluster_graph_config_defaults():
@@ -40,9 +43,28 @@ def test_vdstar_cluster_graph_config_defaults():
     assert config.mu == expected_mu
     assert config.rho == expected_rho
     assert config.seed is None
+    assert config.update_mode == CommunityUpdateMode.Incremental
 
 
 def test_vdstar_cluster_graph_config_seed_parses():
     config: VDStarClusterGraphConfig = VDStarClusterGraphConfig(seed=42)
 
     assert config.seed == 42
+
+
+def test_vdstar_cluster_graph_config_update_mode_can_be_overridden_to_additive():
+    config: VDStarClusterGraphConfig = VDStarClusterGraphConfig(
+        update_mode=CommunityUpdateMode.Additive
+    )
+
+    assert config.update_mode == CommunityUpdateMode.Additive
+
+
+def test_vdstar_cluster_graph_config_update_mode_rejects_unknown_value():
+    with pytest.raises(ValidationError):
+        VDStarClusterGraphConfig(update_mode="bogus")
+
+
+def test_leiden_cluster_graph_config_rejects_incremental_update_mode():
+    with pytest.raises(ValidationError):
+        LeidenClusterGraphConfig(update_mode=CommunityUpdateMode.Incremental)

@@ -17,6 +17,7 @@ from graphrag_vectors import VectorStoreType
 from graphrag.config.embeddings import default_embeddings
 from graphrag.config.enums import (
     AsyncType,
+    CommunityUpdateMode,
     NounPhraseExtractorType,
     ReportingType,
 )
@@ -78,6 +79,7 @@ class ClusterGraphDefaults:
     use_lcc: bool = True
     seed: int = 0xDEADBEEF
     vdstar_seed: int | None = None
+    community_update_mode: CommunityUpdateMode = CommunityUpdateMode.Additive
 
 
 @dataclass

@@ -8,6 +8,7 @@ from typing import Annotated, Literal
 from pydantic import BaseModel, Field
 
 from graphrag.config.defaults import graphrag_config_defaults
+from graphrag.config.enums import CommunityUpdateMode
 from graphrag.config.models.graph_clustering_config_types import (
     GraphClusteringAlgorithmType,
 )
@@ -25,6 +26,11 @@ class BaseClusterGraphConfig[GraphClusteringAlgorithmType](BaseModel):
     use_lcc: bool = Field(
         description="Whether to use the largest connected component.",
         default=graphrag_config_defaults.cluster_graph.use_lcc,
+    )
+
+    update_mode: CommunityUpdateMode = Field(
+        description="How communities are updated on an update run.",
+        default=graphrag_config_defaults.cluster_graph.community_update_mode,
     )
 
     def __init__(self, **data):
@@ -52,6 +58,11 @@ class LeidenClusterGraphConfig(BaseClusterGraphConfig):
         default=graphrag_config_defaults.cluster_graph.seed,
     )
 
+    update_mode: Literal[CommunityUpdateMode.Additive] = Field(
+        description="How communities are updated on an update run.",
+        default=CommunityUpdateMode.Additive,
+    )
+
 
 class VDStarClusterGraphConfig(BaseClusterGraphConfig):
     """Configuration section for clustering graphs using the VDStar algorithm."""
@@ -76,6 +87,11 @@ class VDStarClusterGraphConfig(BaseClusterGraphConfig):
     seed: int | None = Field(
         description="The seed to use for the clustering, or None for a random seed.",
         default=graphrag_config_defaults.cluster_graph.vdstar_seed,
+    )
+
+    update_mode: CommunityUpdateMode = Field(
+        description="How communities are updated on an update run.",
+        default=CommunityUpdateMode.Incremental,
     )
 
 

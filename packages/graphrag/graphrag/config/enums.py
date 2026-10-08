@@ -75,3 +75,13 @@ class ModularityMetric(str, Enum):
 
     WeightedComponents = "weighted_components"
     """Weighted components modularity metric."""
+
+
+class CommunityUpdateMode(str, Enum):
+    """Enum for how communities are updated on an update run."""
+
+    Additive = "additive"
+    """Cluster the delta on its own and union it with the previous communities."""
+
+    Incremental = "incremental"
+    """Update the clustering of the whole new graph."""
