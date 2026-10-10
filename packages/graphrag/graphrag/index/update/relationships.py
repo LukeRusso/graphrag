@@ -4,11 +4,68 @@
 """Relationship related operations and utils for Incremental Indexing."""
 
 import itertools
+from typing import NamedTuple
 
 import numpy as np
 import pandas as pd
 
 from graphrag.data_model.schemas import RELATIONSHIPS_FINAL_COLUMNS
+from graphrag.graphs.types import Edge
+
+
+class GraphDelta(NamedTuple):
+    """The edges and vertices a new graph adds to and removes from an old one."""
+
+    added_edges: list[Edge]
+    removed_edges: list[Edge]
+    added_vertices: list[str]
+    removed_vertices: list[str]
+
+
+def compute_graph_delta(
+    old_relationships: pd.DataFrame,
+    new_relationships: pd.DataFrame,
+    old_entities: pd.DataFrame,
+    new_entities: pd.DataFrame,
+) -> GraphDelta:
+    """Diff a new graph against the old one, returning what changed.
+
+    Edges are compared as undirected (min, max) title pairs, so a reversed row
+    is not a change. Vertices are compared by title, so a vertex with no edges
+    still counts. Both sides are sorted, so the delta is reproducible.
+    """
+    old_edges = _undirected_edges(old_relationships)
+    new_edges = _undirected_edges(new_relationships)
+
+    old_titles = set(old_entities["title"])
+    new_titles = set(new_entities["title"])
+
+    return GraphDelta(
+        added_edges=[
+            new_edges[pair] for pair in sorted(new_edges.keys() - old_edges.keys())
+        ],
+        removed_edges=[
+            old_edges[pair] for pair in sorted(old_edges.keys() - new_edges.keys())
+        ],
+        added_vertices=sorted(new_titles - old_titles),
+        removed_vertices=sorted(old_titles - new_titles),
+    )
+
+
+def _undirected_edges(relationships: pd.DataFrame) -> dict[tuple[str, str], Edge]:
+    """Index edges by their undirected pair, a duplicate row keeping the last weight."""
+    edges: dict[tuple[str, str], Edge] = {}
+
+    for source, target, weight in zip(
+        relationships["source"].astype(str),
+        relationships["target"].astype(str),
+        relationships["weight"].astype(float),
+        strict=True,
+    ):
+        pair = (min(source, target), max(source, target))
+        edges[pair] = Edge(pair[0], pair[1], weight)
+
+    return edges
 
 
 def _update_and_merge_relationships(
