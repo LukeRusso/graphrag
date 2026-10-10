@@ -39,6 +39,9 @@ from .finalize_graph import (
 from .generate_text_embeddings import (
     run_workflow as run_generate_text_embeddings,
 )
+from .load_graph import (
+    run_workflow as run_load_graph,
+)
 from .load_input_documents import (
     run_workflow as run_load_input_documents,
 )
@@ -75,6 +78,7 @@ from .update_text_units import (
 
 # register all of our built-in workflows at once
 PipelineFactory.register_all({  # noqa: RUF067
+    "load_graph": run_load_graph,
     "load_input_documents": run_load_input_documents,
     "load_update_documents": run_load_update_documents,
     "create_base_text_units": run_create_base_text_units,

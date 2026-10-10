@@ -29,6 +29,7 @@ from graphrag.index.operations.build_noun_graph.np_extractors.stop_words import 
 )
 
 DEFAULT_INPUT_BASE_DIR = "input"
+DEFAULT_GRAPH_INPUT_BASE_DIR = "graph_input"
 DEFAULT_OUTPUT_BASE_DIR = "output"
 DEFAULT_CACHE_BASE_DIR = "cache"
 DEFAULT_UPDATE_OUTPUT_BASE_DIR = "update_output"
@@ -244,6 +245,21 @@ class InputDefaults:
 
 
 @dataclass
+class GraphInputDefaults:
+    """Default values for the graph input section."""
+
+    entities_file: str = "entities.parquet"
+    relationships_file: str = "relationships.parquet"
+
+
+@dataclass
+class GraphInputStorageDefaults(StorageDefaults):
+    """Default values for graph input storage."""
+
+    base_dir: str | None = DEFAULT_GRAPH_INPUT_BASE_DIR
+
+
+@dataclass
 class InputStorageDefaults(StorageDefaults):
     """Default values for input storage."""
 
@@ -363,6 +379,10 @@ class GraphRagConfigDefaults:
     )
     cache: CacheDefaults = field(default_factory=CacheDefaults)
     input: InputDefaults = field(default_factory=InputDefaults)
+    graph_input: GraphInputDefaults = field(default_factory=GraphInputDefaults)
+    graph_input_storage: GraphInputStorageDefaults = field(
+        default_factory=GraphInputStorageDefaults
+    )
 
     embed_text: EmbedTextDefaults = field(default_factory=EmbedTextDefaults)
     chunking: ChunkingDefaults = field(default_factory=ChunkingDefaults)

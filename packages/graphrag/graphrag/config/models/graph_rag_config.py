@@ -31,6 +31,7 @@ from graphrag.config.models.extract_claims_config import ExtractClaimsConfig
 from graphrag.config.models.extract_graph_config import ExtractGraphConfig
 from graphrag.config.models.extract_graph_nlp_config import ExtractGraphNLPConfig
 from graphrag.config.models.global_search_config import GlobalSearchConfig
+from graphrag.config.models.graph_input_config import GraphInputConfig
 from graphrag.config.models.local_search_config import LocalSearchConfig
 from graphrag.config.models.prune_graph_config import PruneGraphConfig
 from graphrag.config.models.reporting_config import ReportingConfig
@@ -92,6 +93,33 @@ class GraphRagConfig(BaseModel):
                 raise ValueError(msg)
             self.input_storage.base_dir = str(
                 Path(self.input_storage.base_dir).resolve()
+            )
+
+    graph_input: GraphInputConfig = Field(
+        description=(
+            "The graph input configuration. A graph-native run reads a supplied "
+            "graph from here instead of building one from documents."
+        ),
+        default=GraphInputConfig(),
+    )
+    """The graph input configuration."""
+
+    graph_input_storage: StorageConfig = Field(
+        description="The graph input storage configuration.",
+        default=StorageConfig(
+            base_dir=graphrag_config_defaults.graph_input_storage.base_dir,
+        ),
+    )
+    """The graph input storage configuration."""
+
+    def _validate_graph_input_base_dir(self) -> None:
+        """Validate the graph input storage base directory."""
+        if self.graph_input_storage.type == StorageType.File:
+            if not self.graph_input_storage.base_dir:
+                msg = "graph_input storage base directory is required for file input storage. Please set the graph_input storage configuration."
+                raise ValueError(msg)
+            self.graph_input_storage.base_dir = str(
+                Path(self.graph_input_storage.base_dir).resolve()
             )
 
     chunking: ChunkingConfig = Field(
@@ -329,6 +357,7 @@ class GraphRagConfig(BaseModel):
     def _validate_model(self):
         """Validate the model configuration."""
         self._validate_input_base_dir()
+        self._validate_graph_input_base_dir()
         self._validate_reporting_base_dir()
         self._validate_output_base_dir()
         self._validate_update_output_storage_base_dir()
