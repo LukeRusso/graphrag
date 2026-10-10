@@ -71,6 +71,13 @@ _fast_workflows = [
     "create_community_reports_text",
     "generate_text_embeddings",
 ]
+_graph_workflows = [
+    "load_graph",
+    "finalize_graph",
+    "create_communities",
+    "create_community_reports",
+    "generate_text_embeddings",
+]
 _update_workflows = [
     "update_final_documents",
     "update_entities_relationships",
@@ -87,6 +94,7 @@ PipelineFactory.register_pipeline(
 PipelineFactory.register_pipeline(
     IndexingMethod.Fast, ["load_input_documents", *_fast_workflows]
 )
+PipelineFactory.register_pipeline(IndexingMethod.Graph, [*_graph_workflows])
 PipelineFactory.register_pipeline(
     IndexingMethod.StandardUpdate,
     ["load_update_documents", *_standard_workflows, *_update_workflows],
