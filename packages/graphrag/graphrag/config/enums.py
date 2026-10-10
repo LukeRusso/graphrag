@@ -50,6 +50,8 @@ class IndexingMethod(str, Enum):
     """Fast indexing, using NLP for graph construction and language model for summarization."""
     Graph = "graph"
     """Graph indexing, using a supplied graph in place of documents."""
+    GraphUpdate = "graph-update"
+    """Graph indexing on an update run, reconciled against the previous run's output."""
     StandardUpdate = "standard-update"
     """Incremental update with standard indexing."""
     FastUpdate = "fast-update"

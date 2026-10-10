@@ -24,6 +24,16 @@ GRAPH_WORKFLOWS = [
     "generate_text_embeddings",
 ]
 
+GRAPH_UPDATE_WORKFLOWS = [
+    "load_graph",
+    "finalize_graph",
+    "graph_diff",
+    "create_communities",
+    "create_community_reports",
+    "generate_text_embeddings",
+    "update_clean_state",
+]
+
 # two disconnected triangles, one text unit per edge
 TRIANGLE_EDGES = [
     ("A", "B", "t0"),
@@ -181,3 +191,22 @@ async def test_writes_a_report_for_each_community(tmp_path, cluster_graph):
 
     assert len(reports) == 2
     assert set(reports["community"]) == set(communities["community"])
+
+
+async def test_graph_update_runs_workflows_in_order_without_errors(tmp_path):
+    previous = tmp_path / "output"
+    previous.mkdir()
+    _entities().to_parquet(previous / "entities.parquet", index=False)
+    _relationships().to_parquet(previous / "relationships.parquet", index=False)
+
+    outputs = await build_index(
+        _config(
+            tmp_path,
+            LeidenClusterGraphConfig(max_cluster_size=10, use_lcc=False, seed=42),
+        ),
+        method=IndexingMethod.Graph,
+        is_update_run=True,
+    )
+
+    assert [output.workflow for output in outputs] == GRAPH_UPDATE_WORKFLOWS
+    assert [output.error for output in outputs] == [None] * len(GRAPH_UPDATE_WORKFLOWS)

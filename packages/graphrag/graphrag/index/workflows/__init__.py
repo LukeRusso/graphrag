@@ -39,6 +39,9 @@ from .finalize_graph import (
 from .generate_text_embeddings import (
     run_workflow as run_generate_text_embeddings,
 )
+from .graph_diff import (
+    run_workflow as run_graph_diff,
+)
 from .load_graph import (
     run_workflow as run_load_graph,
 )
@@ -92,6 +95,7 @@ PipelineFactory.register_all({  # noqa: RUF067
     "extract_graph": run_extract_graph,
     "finalize_graph": run_finalize_graph,
     "generate_text_embeddings": run_generate_text_embeddings,
+    "graph_diff": run_graph_diff,
     "prune_graph": run_prune_graph,
     "update_final_documents": run_update_final_documents,
     "update_text_embeddings": run_update_text_embeddings,
