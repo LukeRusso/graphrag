@@ -2,7 +2,6 @@
 
 from pathlib import Path
 
-import pandas as pd
 from graphrag.graphs.types import Edge
 from graphrag.index.run.utils import create_run_context
 from graphrag.index.typing.context import PipelineRunContext
@@ -11,35 +10,7 @@ from graphrag_storage import StorageConfig, create_storage
 from graphrag_storage.tables.parquet_table_provider import ParquetTableProvider
 
 from tests.unit.config.utils import get_default_graphrag_config
-
-
-def _entities(*titles: str) -> pd.DataFrame:
-    return pd.DataFrame([
-        {
-            "id": f"e{title}",
-            "human_readable_id": i,
-            "title": title,
-            "type": "THING",
-            "description": f"{title} is a thing.",
-            "text_unit_ids": [],
-        }
-        for i, title in enumerate(titles)
-    ])
-
-
-def _relationships(*edges: tuple[str, str]) -> pd.DataFrame:
-    return pd.DataFrame([
-        {
-            "id": f"r{i}",
-            "human_readable_id": i,
-            "source": source,
-            "target": target,
-            "description": f"{source} relates to {target}.",
-            "weight": 1.0,
-            "text_unit_ids": [],
-        }
-        for i, (source, target) in enumerate(edges)
-    ])
+from tests.unit.graph_utils import entities, relationships
 
 
 def _provider(path: Path) -> ParquetTableProvider:
@@ -58,9 +29,9 @@ def _context(previous_dir: Path, delta_dir: Path) -> PipelineRunContext:
 
 async def test_no_previous_graph_adds_the_whole_supplied_graph(tmp_path):
     context = _context(tmp_path / "previous", tmp_path / "delta")
-    await context.output_table_provider.write_dataframe("entities", _entities("A", "B"))
+    await context.output_table_provider.write_dataframe("entities", entities("A", "B"))
     await context.output_table_provider.write_dataframe(
-        "relationships", _relationships(("A", "B"))
+        "relationships", relationships(("A", "B"))
     )
 
     await run_workflow(get_default_graphrag_config(), context)
@@ -75,16 +46,16 @@ async def test_no_previous_graph_adds_the_whole_supplied_graph(tmp_path):
 async def test_the_delta_is_the_difference_from_the_previous_graph(tmp_path):
     context = _context(tmp_path / "previous", tmp_path / "delta")
     await context.previous_table_provider.write_dataframe(
-        "entities", _entities("A", "B", "C")
+        "entities", entities("A", "B", "C")
     )
     await context.previous_table_provider.write_dataframe(
-        "relationships", _relationships(("A", "B"), ("B", "C"))
+        "relationships", relationships(("A", "B"), ("B", "C"))
     )
     await context.output_table_provider.write_dataframe(
-        "entities", _entities("A", "B", "C", "D")
+        "entities", entities("A", "B", "C", "D")
     )
     await context.output_table_provider.write_dataframe(
-        "relationships", _relationships(("A", "B"), ("C", "D"))
+        "relationships", relationships(("A", "B"), ("C", "D"))
     )
 
     await run_workflow(get_default_graphrag_config(), context)
