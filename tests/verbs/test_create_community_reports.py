@@ -2,16 +2,24 @@
 # Licensed under the MIT License
 
 
-from graphrag.data_model.schemas import COMMUNITY_REPORTS_FINAL_COLUMNS
+import pandas as pd
+from graphrag.data_model.schemas import (
+    COMMUNITIES_FINAL_COLUMNS,
+    COMMUNITY_REPORTS_FINAL_COLUMNS,
+)
 from graphrag.index.operations.summarize_communities.community_reports_extractor import (
     CommunityReportResponse,
     FindingModel,
 )
+from graphrag.index.run.utils import create_run_context
 from graphrag.index.workflows.create_community_reports import (
     run_workflow,
 )
+from graphrag_storage.memory_storage import MemoryStorage
+from graphrag_storage.tables.parquet_table_provider import ParquetTableProvider
 
 from tests.unit.config.utils import get_default_graphrag_config
+from tests.unit.graph_utils import cfg, entities, leiden_config, relationships
 
 from .util import (
     compare_outputs,
@@ -68,3 +76,19 @@ async def test_create_community_reports():
 
     for column in COMMUNITY_REPORTS_FINAL_COLUMNS:
         assert column in actual.columns
+
+
+async def test_no_communities_writes_an_empty_reports_table():
+    provider = ParquetTableProvider(storage=MemoryStorage())
+    await provider.write_dataframe("entities", entities("A", "B"))
+    await provider.write_dataframe("relationships", relationships(("A", "B")))
+    await provider.write_dataframe(
+        "communities", pd.DataFrame(columns=COMMUNITIES_FINAL_COLUMNS)
+    )
+    context = create_run_context(output_table_provider=provider)
+
+    await run_workflow(cfg(leiden_config()), context)
+
+    reports = await provider.read_dataframe("community_reports")
+    assert reports.empty
+    assert list(reports.columns) == COMMUNITY_REPORTS_FINAL_COLUMNS

@@ -34,6 +34,17 @@ async def test_save_then_load_round_trips():
     assert loaded_id_map == id_map
 
 
+async def test_has_is_false_before_save():
+    assert await _state().has() is False
+
+
+async def test_has_is_true_after_save():
+    state = _state()
+    await state.save(b"blob", {"node-a": 1})
+
+    assert await state.has() is True
+
+
 @pytest.mark.parametrize(
     "present_key",
     [GRAPH_BLOB_KEY, ID_MAP_KEY],
@@ -45,6 +56,18 @@ async def test_lopsided_pair_raises(present_key: str):
 
     with pytest.raises(RuntimeError, match="Lopsided VD-STAR state"):
         await VDStarState(storage).load()
+
+
+@pytest.mark.parametrize(
+    "present_key",
+    [GRAPH_BLOB_KEY, ID_MAP_KEY],
+    ids=["blob-only", "id-map-only"],
+)
+async def test_has_is_false_for_a_lopsided_pair(present_key: str):
+    storage = MemoryStorage()
+    await storage.set(present_key, b"whatever")
+
+    assert await VDStarState(storage).has() is False
 
 
 async def test_decode_accepts_json_bytes():

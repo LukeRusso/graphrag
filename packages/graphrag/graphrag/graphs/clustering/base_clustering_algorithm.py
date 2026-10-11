@@ -33,3 +33,7 @@ class IIncrementalClusteringAlgorithm[ClusterGraphConfig](
         edges_removed: list[Edge],
     ) -> list[Cluster]:
         """Update the clustering given the provided graph changes."""
+
+    @abstractmethod
+    async def has_state(self) -> bool:
+        """Whether the algorithm has persisted state to resume from."""

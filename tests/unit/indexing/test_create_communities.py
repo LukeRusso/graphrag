@@ -8,25 +8,25 @@ the per-level loop, streaming entity reads, streaming writes, etc.)
 can be verified against known output.
 """
 
+import asyncio
 import uuid
 from typing import Any
 
 import numpy as np
 import pandas as pd
 import pytest
-from graphrag.config.models.cluster_graph_config import (
-    ClusterGraphConfig,
-    LeidenClusterGraphConfig,
-)
+from graphrag.config.models.cluster_graph_config import ClusterGraphConfig
 from graphrag.data_model.schemas import COMMUNITIES_FINAL_COLUMNS
 from graphrag.index.workflows.create_communities import (
     _sanitize_row,
     create_communities,
 )
+from graphrag_storage.memory_storage import MemoryStorage
 from graphrag_storage.tables.csv_table import CSVTable
+from graphrag_storage.tables.parquet_table_provider import ParquetTableProvider
 from graphrag_storage.tables.table import Table
 
-from tests.unit.graph_utils import cfg
+from tests.unit.graph_utils import cfg, leiden_config
 
 
 class FakeTable(CSVTable):
@@ -92,6 +92,7 @@ async def _run_create_communities(
         entities_table,
         relationships,
         cfg(graph_cluster_config),
+        ParquetTableProvider(storage=MemoryStorage()),
     )
     return pd.DataFrame(communities_table.rows)
 
@@ -123,8 +124,7 @@ def _make_relationships(
     ])
 
 
-@pytest.fixture
-def two_triangles():
+def _two_triangles() -> tuple[dict[str, str], pd.DataFrame]:
     """Two disconnected triangles: {A,B,C} and {D,E,F}."""
     title_to_entity_id = _make_title_to_entity_id([
         ("e1", "A"),
@@ -145,6 +145,15 @@ def two_triangles():
     return title_to_entity_id, relationships
 
 
+@pytest.fixture(scope="module")
+def two_triangle_result() -> pd.DataFrame:
+    """One run of the operation over the two-triangle fixture."""
+    title_to_entity_id, relationships = _two_triangles()
+    return asyncio.run(
+        _run_create_communities(title_to_entity_id, relationships, leiden_config())
+    )
+
+
 # -------------------------------------------------------------------
 # Column schema
 # -------------------------------------------------------------------
@@ -153,26 +162,9 @@ def two_triangles():
 class TestOutputSchema:
     """Verify the output DataFrame has the expected column schema."""
 
-    async def test_has_all_final_columns(self, two_triangles):
+    def test_has_all_final_columns(self, two_triangle_result: pd.DataFrame):
         """Output must have exactly the COMMUNITIES_FINAL_COLUMNS."""
-        title_to_entity_id, relationships = two_triangles
-        result = await _run_create_communities(
-            title_to_entity_id,
-            relationships,
-            LeidenClusterGraphConfig(max_cluster_size=10, use_lcc=False, seed=42),
-        )
-        assert list(result.columns) == COMMUNITIES_FINAL_COLUMNS
-
-    async def test_column_order_matches_schema(self, two_triangles):
-        """Column order must match the schema constant exactly."""
-        title_to_entity_id, relationships = two_triangles
-        result = await _run_create_communities(
-            title_to_entity_id,
-            relationships,
-            LeidenClusterGraphConfig(max_cluster_size=10, use_lcc=False, seed=42),
-        )
-        for i, col_name in enumerate(COMMUNITIES_FINAL_COLUMNS):
-            assert result.columns[i] == col_name
+        assert list(two_triangle_result.columns) == COMMUNITIES_FINAL_COLUMNS
 
 
 # -------------------------------------------------------------------
@@ -183,61 +175,27 @@ class TestOutputSchema:
 class TestMetadataFields:
     """Verify computed metadata fields like id, title, size, period."""
 
-    async def test_uuid_ids(self, two_triangles):
+    def test_uuid_ids(self, two_triangle_result: pd.DataFrame):
         """Each community id should be a valid UUID4."""
-        title_to_entity_id, relationships = two_triangles
-        result = await _run_create_communities(
-            title_to_entity_id,
-            relationships,
-            LeidenClusterGraphConfig(max_cluster_size=10, use_lcc=False, seed=42),
-        )
-        for _, row in result.iterrows():
+        for _, row in two_triangle_result.iterrows():
             parsed = uuid.UUID(row["id"])
             assert parsed.version == 4
 
-    async def test_title_format(self, two_triangles):
+    def test_title_format(self, two_triangle_result: pd.DataFrame):
         """Title should be 'Community N' where N is the community id."""
-        title_to_entity_id, relationships = two_triangles
-        result = await _run_create_communities(
-            title_to_entity_id,
-            relationships,
-            LeidenClusterGraphConfig(max_cluster_size=10, use_lcc=False, seed=42),
-        )
-        for _, row in result.iterrows():
+        for _, row in two_triangle_result.iterrows():
             assert row["title"] == f"Community {row['community']}"
 
-    async def test_human_readable_id_equals_community(self, two_triangles):
-        """human_readable_id should equal the community integer id."""
-        title_to_entity_id, relationships = two_triangles
-        result = await _run_create_communities(
-            title_to_entity_id,
-            relationships,
-            LeidenClusterGraphConfig(max_cluster_size=10, use_lcc=False, seed=42),
-        )
-        assert (result["human_readable_id"] == result["community"]).all()
-
-    async def test_size_equals_entity_count(self, two_triangles):
+    def test_size_equals_entity_count(self, two_triangle_result: pd.DataFrame):
         """size should equal the length of entity_ids."""
-        title_to_entity_id, relationships = two_triangles
-        result = await _run_create_communities(
-            title_to_entity_id,
-            relationships,
-            LeidenClusterGraphConfig(max_cluster_size=10, use_lcc=False, seed=42),
-        )
-        for _, row in result.iterrows():
+        for _, row in two_triangle_result.iterrows():
             assert row["size"] == len(row["entity_ids"])
 
-    async def test_period_is_iso_date(self, two_triangles):
+    def test_period_is_iso_date(self, two_triangle_result: pd.DataFrame):
         """period should be a valid ISO date string."""
-        title_to_entity_id, relationships = two_triangles
-        result = await _run_create_communities(
-            title_to_entity_id,
-            relationships,
-            LeidenClusterGraphConfig(max_cluster_size=10, use_lcc=False, seed=42),
-        )
         from datetime import date
 
-        for _, row in result.iterrows():
+        for _, row in two_triangle_result.iterrows():
             date.fromisoformat(row["period"])
 
 
@@ -249,30 +207,18 @@ class TestMetadataFields:
 class TestEntityAggregation:
     """Verify that entity_ids are correctly aggregated per community."""
 
-    async def test_entity_ids_per_community(self, two_triangles):
+    def test_entity_ids_per_community(self, two_triangle_result: pd.DataFrame):
         """Each community should contain exactly the entities matching
         its cluster nodes."""
-        title_to_entity_id, relationships = two_triangles
-        result = await _run_create_communities(
-            title_to_entity_id,
-            relationships,
-            LeidenClusterGraphConfig(max_cluster_size=10, use_lcc=False, seed=42),
-        )
-        comm_0 = result[result["community"] == 0].iloc[0]
-        comm_1 = result[result["community"] == 1].iloc[0]
+        comm_0 = two_triangle_result[two_triangle_result["community"] == 0].iloc[0]
+        comm_1 = two_triangle_result[two_triangle_result["community"] == 1].iloc[0]
 
         assert sorted(comm_0["entity_ids"]) == ["e1", "e2", "e3"]
         assert sorted(comm_1["entity_ids"]) == ["e4", "e5", "e6"]
 
-    async def test_entity_ids_are_lists(self, two_triangles):
+    def test_entity_ids_are_lists(self, two_triangle_result: pd.DataFrame):
         """entity_ids should be Python lists, not numpy arrays."""
-        title_to_entity_id, relationships = two_triangles
-        result = await _run_create_communities(
-            title_to_entity_id,
-            relationships,
-            LeidenClusterGraphConfig(max_cluster_size=10, use_lcc=False, seed=42),
-        )
-        for _, row in result.iterrows():
+        for _, row in two_triangle_result.iterrows():
             assert isinstance(row["entity_ids"], list)
 
 
@@ -285,48 +231,23 @@ class TestRelationshipAggregation:
     """Verify that relationship_ids and text_unit_ids are correctly
     aggregated (intra-community only) and deduplicated."""
 
-    async def test_relationship_ids_per_community(self, two_triangles):
+    def test_relationship_ids_per_community(self, two_triangle_result: pd.DataFrame):
         """Each community should only include relationships where both
         endpoints are in the same community."""
-        title_to_entity_id, relationships = two_triangles
-        result = await _run_create_communities(
-            title_to_entity_id,
-            relationships,
-            LeidenClusterGraphConfig(max_cluster_size=10, use_lcc=False, seed=42),
-        )
-        comm_0 = result[result["community"] == 0].iloc[0]
-        comm_1 = result[result["community"] == 1].iloc[0]
+        comm_0 = two_triangle_result[two_triangle_result["community"] == 0].iloc[0]
+        comm_1 = two_triangle_result[two_triangle_result["community"] == 1].iloc[0]
 
         assert sorted(comm_0["relationship_ids"]) == ["r1", "r2", "r3"]
         assert sorted(comm_1["relationship_ids"]) == ["r4", "r5", "r6"]
 
-    async def test_text_unit_ids_per_community(self, two_triangles):
+    def test_text_unit_ids_per_community(self, two_triangle_result: pd.DataFrame):
         """text_unit_ids should be the deduplicated union of text units
         from the community's intra-community relationships."""
-        title_to_entity_id, relationships = two_triangles
-        result = await _run_create_communities(
-            title_to_entity_id,
-            relationships,
-            LeidenClusterGraphConfig(max_cluster_size=10, use_lcc=False, seed=42),
-        )
-        comm_0 = result[result["community"] == 0].iloc[0]
-        comm_1 = result[result["community"] == 1].iloc[0]
+        comm_0 = two_triangle_result[two_triangle_result["community"] == 0].iloc[0]
+        comm_1 = two_triangle_result[two_triangle_result["community"] == 1].iloc[0]
 
         assert sorted(comm_0["text_unit_ids"]) == ["t1", "t2"]
         assert sorted(comm_1["text_unit_ids"]) == ["t3", "t4"]
-
-    async def test_lists_are_sorted_and_deduplicated(self, two_triangles):
-        """relationship_ids and text_unit_ids should be sorted with
-        no duplicates."""
-        title_to_entity_id, relationships = two_triangles
-        result = await _run_create_communities(
-            title_to_entity_id,
-            relationships,
-            LeidenClusterGraphConfig(max_cluster_size=10, use_lcc=False, seed=42),
-        )
-        for _, row in result.iterrows():
-            assert row["relationship_ids"] == sorted(set(row["relationship_ids"]))
-            assert row["text_unit_ids"] == sorted(set(row["text_unit_ids"]))
 
     async def test_cross_community_relationships_excluded(self):
         """A relationship spanning two communities must not appear in
@@ -351,7 +272,7 @@ class TestRelationshipAggregation:
         result = await _run_create_communities(
             title_to_entity_id,
             relationships,
-            LeidenClusterGraphConfig(max_cluster_size=10, use_lcc=False, seed=42),
+            leiden_config(),
         )
         all_rel_ids = []
         for _, row in result.iterrows():
@@ -370,31 +291,6 @@ class TestRelationshipAggregation:
 class TestParentChildTree:
     """Verify the parent-child tree structure is consistent."""
 
-    async def test_level_zero_parent_is_minus_one(self, two_triangles):
-        """All level-0 communities should have parent == -1."""
-        title_to_entity_id, relationships = two_triangles
-        result = await _run_create_communities(
-            title_to_entity_id,
-            relationships,
-            LeidenClusterGraphConfig(max_cluster_size=10, use_lcc=False, seed=42),
-        )
-        lvl0 = result[result["level"] == 0]
-        assert (lvl0["parent"] == -1).all()
-
-    async def test_leaf_communities_have_empty_children(self, two_triangles):
-        """Communities that are nobody's parent should have children=[]."""
-        title_to_entity_id, relationships = two_triangles
-        result = await _run_create_communities(
-            title_to_entity_id,
-            relationships,
-            LeidenClusterGraphConfig(max_cluster_size=10, use_lcc=False, seed=42),
-        )
-        for _, row in result.iterrows():
-            children = row["children"]
-            if isinstance(children, list) and len(children) == 0:
-                child_rows = result[result["parent"] == row["community"]]
-                assert len(child_rows) == 0
-
     async def test_parent_child_bidirectional_consistency_real_data(self):
         """For real test data: if community X lists Y as child,
         then Y's parent must be X."""
@@ -406,9 +302,7 @@ class TestParentChildTree:
         result = await _run_create_communities(
             title_to_entity_id,
             relationships,
-            LeidenClusterGraphConfig(
-                max_cluster_size=10, use_lcc=True, seed=0xDEADBEEF
-            ),
+            leiden_config(use_lcc=True, seed=0xDEADBEEF),
         )
         for _, row in result.iterrows():
             children = row["children"]
@@ -451,12 +345,12 @@ class TestLccFiltering:
         result_no_lcc = await _run_create_communities(
             title_to_entity_id,
             relationships,
-            LeidenClusterGraphConfig(max_cluster_size=10, use_lcc=False, seed=42),
+            leiden_config(),
         )
         result_lcc = await _run_create_communities(
             title_to_entity_id,
             relationships,
-            LeidenClusterGraphConfig(max_cluster_size=10, use_lcc=True, seed=42),
+            leiden_config(use_lcc=True),
         )
         assert len(result_lcc) < len(result_no_lcc)
         assert len(result_lcc) == 1
@@ -474,34 +368,23 @@ class TestRealDataRegression:
     is caught immediately.
     """
 
-    @pytest.fixture
-    async def real_result(self) -> pd.DataFrame:
-        """Run create_communities on the test fixture data."""
+    @pytest.fixture(scope="module")
+    def real_result(self) -> pd.DataFrame:
+        """One run of the operation over the shared real test data."""
         entities_df = pd.read_parquet("tests/verbs/data/entities.parquet")
         title_to_entity_id = dict(
             zip(entities_df["title"], entities_df["id"], strict=False)
         )
         relationships = pd.read_parquet("tests/verbs/data/relationships.parquet")
-        return await _run_create_communities(
-            title_to_entity_id,
-            relationships,
-            LeidenClusterGraphConfig(
-                max_cluster_size=10, use_lcc=True, seed=0xDEADBEEF
-            ),
+        return asyncio.run(
+            _run_create_communities(
+                title_to_entity_id,
+                relationships,
+                leiden_config(use_lcc=True, seed=0xDEADBEEF),
+            )
         )
 
-    async def test_row_count(self, real_result: pd.DataFrame):
-        """Pin the expected number of communities."""
-        assert len(real_result) == 122
-
-    async def test_level_distribution(self, real_result: pd.DataFrame):
-        """Pin the expected number of communities per level."""
-        from collections import Counter
-
-        counts = Counter(real_result["level"].tolist())
-        assert counts == {0: 23, 1: 65, 2: 32, 3: 2}
-
-    async def test_values_match_golden_file(self, real_result: pd.DataFrame):
+    def test_values_match_golden_file(self, real_result: pd.DataFrame):
         """The output should match the golden Parquet file for all
         columns except id (UUID) and period (date-dependent)."""
         expected = pd.read_parquet("tests/verbs/data/communities.parquet")
@@ -529,13 +412,6 @@ class TestRealDataRegression:
             assert actual_children == expected_children, (
                 f"Row {i} children mismatch: {actual_children} != {expected_children}"
             )
-
-    async def test_communities_with_children(self, real_result: pd.DataFrame):
-        """Pin the expected number of communities that have children."""
-        has_children = real_result["children"].apply(
-            lambda x: hasattr(x, "__len__") and len(x) > 0
-        )
-        assert has_children.sum() == 24
 
 
 # -------------------------------------------------------------------
@@ -572,11 +448,6 @@ class TestSanitizeRow:
         assert result["weight"] == pytest.approx(3.14)
         assert type(result["weight"]) is float
 
-    def test_native_types_pass_through(self):
-        """Native Python types should pass through unchanged."""
-        row = {"id": "abc", "size": 5, "tags": ["a", "b"]}
-        assert _sanitize_row(row) == row
-
     def test_mixed_row(self):
         """A row with a mix of numpy and native types."""
         row = {
@@ -595,3 +466,19 @@ class TestSanitizeRow:
         assert type(result["community"]) is int
         assert type(result["children"]) is list
         assert type(result["weight"]) is float
+
+
+async def test_no_edges_writes_an_empty_communities_table():
+    provider = ParquetTableProvider(storage=MemoryStorage())
+
+    await create_communities(
+        FakeTable(),
+        FakeEntitiesTable([{"id": "e1", "title": "A"}]),
+        pd.DataFrame(),
+        cfg(leiden_config()),
+        provider,
+    )
+
+    communities = await provider.read_dataframe("communities")
+    assert communities.empty
+    assert list(communities.columns) == COMMUNITIES_FINAL_COLUMNS

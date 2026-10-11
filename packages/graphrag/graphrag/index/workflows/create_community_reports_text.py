@@ -10,6 +10,7 @@ import pandas as pd
 from graphrag_llm.completion import create_completion
 from graphrag_llm.tokenizer import Tokenizer
 
+import graphrag.data_model.schemas as schemas
 from graphrag.cache.cache_key_creator import cache_key_creator
 from graphrag.callbacks.workflow_callbacks import WorkflowCallbacks
 from graphrag.config.enums import AsyncType
@@ -46,6 +47,13 @@ async def run_workflow(
     reader = DataReader(context.output_table_provider)
     entities = await reader.entities()
     communities = await reader.communities()
+
+    if communities.empty:
+        output = pd.DataFrame(columns=schemas.COMMUNITY_REPORTS_FINAL_COLUMNS)
+        await context.output_table_provider.write_dataframe("community_reports", output)
+        logger.info("Workflow completed: create_community_reports_text")
+        return WorkflowFunctionOutput(result=output)
+
     text_units = await reader.text_units()
 
     model_config = config.get_completion_model_config(

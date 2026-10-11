@@ -4,30 +4,49 @@
 
 from collections import defaultdict
 
+import pandas as pd
 from graphrag.config.models.cluster_graph_config import (
     ClusterGraphConfig,
     LeidenClusterGraphConfig,
     VDStarClusterGraphConfig,
 )
 from graphrag.config.models.graph_rag_config import GraphRagConfig
+from graphrag.data_model.schemas import (
+    ENTITIES_FINAL_COLUMNS,
+    RELATIONSHIPS_FINAL_COLUMNS,
+)
 from graphrag.graphs.types import Cluster, Edge
+from graphrag_storage import StorageConfig
 
 
-def vdstar_config() -> VDStarClusterGraphConfig:
-    """A VD-Star config with a single small epsilon level."""
-    return VDStarClusterGraphConfig(epsilon_levels=[0.5], use_lcc=False)
+def vdstar_config(**overrides) -> VDStarClusterGraphConfig:
+    """A deterministic VD-Star config with a single small epsilon level."""
+    return VDStarClusterGraphConfig(**{
+        "epsilon_levels": [0.5],
+        "use_lcc": False,
+        "seed": 42,
+        **overrides,
+    })
 
 
-def leiden_config() -> LeidenClusterGraphConfig:
+def leiden_config(**overrides) -> LeidenClusterGraphConfig:
     """A deterministic Leiden config."""
-    return LeidenClusterGraphConfig(max_cluster_size=10, use_lcc=False, seed=42)
+    return LeidenClusterGraphConfig(**{
+        "max_cluster_size": 10,
+        "use_lcc": False,
+        "seed": 42,
+        **overrides,
+    })
 
 
-def cfg(cluster_graph: ClusterGraphConfig) -> GraphRagConfig:
+def cfg(
+    cluster_graph: ClusterGraphConfig,
+    update_output_storage: StorageConfig | None = None,
+) -> GraphRagConfig:
     """Wrap a clustering config in the top-level pipeline config."""
     return GraphRagConfig(
         cluster_graph=cluster_graph,
-        update_output_storage={"type": "memory"},
+        update_output_storage=update_output_storage or {"type": "memory"},
     )
 
 
@@ -52,3 +71,48 @@ def by_level(clusters: list[Cluster]) -> dict[int, list[Cluster]]:
     for cluster in clusters:
         grouped[cluster.level].append(cluster)
     return grouped
+
+
+def node_sets(clusters: list[Cluster]) -> list[set[str]]:
+    """The node set of every cluster, in order."""
+    return [set(cluster.nodes) for cluster in clusters]
+
+
+def entities(*titles: str) -> pd.DataFrame:
+    """An entities frame, one row per title, with the id derived from it."""
+    return pd.DataFrame(
+        [
+            {
+                "id": f"e{title}",
+                "human_readable_id": i,
+                "title": title,
+                "type": "THING",
+                "description": f"{title} is a thing.",
+                "text_unit_ids": [],
+                "frequency": 1,
+                "degree": 1,
+            }
+            for i, title in enumerate(titles)
+        ],
+        columns=ENTITIES_FINAL_COLUMNS,
+    )
+
+
+def relationships(*edges: tuple[str, str] | tuple[str, str, str]) -> pd.DataFrame:
+    """A relationships frame, each edge optionally naming its text unit."""
+    return pd.DataFrame(
+        [
+            {
+                "id": f"r{i}",
+                "human_readable_id": i,
+                "source": edge[0],
+                "target": edge[1],
+                "description": f"{edge[0]} relates to {edge[1]}.",
+                "weight": 1.0,
+                "combined_degree": 2,
+                "text_unit_ids": [edge[2]] if len(edge) == 3 else [],
+            }
+            for i, edge in enumerate(edges)
+        ],
+        columns=RELATIONSHIPS_FINAL_COLUMNS,
+    )

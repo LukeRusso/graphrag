@@ -56,6 +56,13 @@ class VDStarState:
         await self._storage.set(GRAPH_BLOB_KEY, blob)
         await self._storage.set(ID_MAP_KEY, json.dumps(id_map))
 
+    async def has(self) -> bool:
+        """Whether both keys of the state pair are present."""
+        has_blob = await self._storage.has(GRAPH_BLOB_KEY)
+        has_id_map = await self._storage.has(ID_MAP_KEY)
+
+        return has_blob and has_id_map
+
     def decode_id_map(self, raw: bytes | str) -> dict[str, int]:
         """Decode the persisted node id map, rejecting non-int values.
 

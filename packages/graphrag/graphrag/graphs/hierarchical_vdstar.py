@@ -63,6 +63,10 @@ class HierarchicalVDStar(IIncrementalClusteringAlgorithm[VDStarClusterGraphConfi
 
         return await self._query_and_save(graph)
 
+    async def has_state(self) -> bool:
+        """Whether a state pair is persisted to resume from."""
+        return await self._state.has()
+
     async def _load_graph(self) -> vdstar.Graph:
         """Read the persisted graph and rebuild the id maps."""
         state = await self._state.load()

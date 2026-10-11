@@ -49,6 +49,12 @@ async def run_workflow(
     entities = await reader.entities()
     communities = await reader.communities()
 
+    if communities.empty:
+        output = pd.DataFrame(columns=schemas.COMMUNITY_REPORTS_FINAL_COLUMNS)
+        await context.output_table_provider.write_dataframe("community_reports", output)
+        logger.info("Workflow completed: create_community_reports")
+        return WorkflowFunctionOutput(result=output)
+
     claims = None
     if config.extract_claims.enabled and await context.output_table_provider.has(
         "covariates"

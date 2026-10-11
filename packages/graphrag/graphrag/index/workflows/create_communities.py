@@ -11,6 +11,7 @@ from uuid import uuid4
 import numpy as np
 import pandas as pd
 from graphrag_storage.tables.table import Table
+from graphrag_storage.tables.table_provider import TableProvider
 
 from graphrag.config.models.graph_rag_config import GraphRagConfig
 from graphrag.data_model.data_reader import DataReader
@@ -18,6 +19,8 @@ from graphrag.data_model.schemas import COMMUNITIES_FINAL_COLUMNS
 from graphrag.index.operations.cluster_graph import cluster_graph
 from graphrag.index.typing.context import PipelineRunContext
 from graphrag.index.typing.workflow import WorkflowFunctionOutput
+from graphrag.index.update.relationships import GraphDelta
+from graphrag.index.workflows.graph_diff import GRAPH_DELTA_STATE_KEY
 
 logger = logging.getLogger(__name__)
 
@@ -30,13 +33,19 @@ async def run_workflow(
     logger.info("Workflow started: create_communities")
     reader = DataReader(context.output_table_provider)
     relationships = await reader.relationships()
+    delta: GraphDelta | None = context.state.get(GRAPH_DELTA_STATE_KEY)
 
     async with (
         context.output_table_provider.open("entities") as entities_table,
         context.output_table_provider.open("communities") as communities_table,
     ):
         sample_rows = await create_communities(
-            communities_table, entities_table, relationships, config
+            communities_table,
+            entities_table,
+            relationships,
+            config,
+            context.output_table_provider,
+            delta,
         )
 
     logger.info("Workflow completed: create_communities")
@@ -48,6 +57,8 @@ async def create_communities(
     entities_table: Table,
     relationships: pd.DataFrame,
     config: GraphRagConfig,
+    table_provider: TableProvider,
+    delta: GraphDelta | None = None,
 ) -> list[dict[str, Any]]:
     """Build communities from clustered relationships and stream rows to the table.
 
@@ -63,13 +74,24 @@ async def create_communities(
         config: GraphRagConfig
             Full pipeline config. Carries the clustering config and the
             storage used to resolve VD-Star state.
+        table_provider: TableProvider
+            Provider for the run's tables, used to write an empty communities
+            table when clustering produces none.
+        delta: GraphDelta | None
+            The graph delta an update run is applying, or None on a build run. Currently only for graph-ingesting pipelines.
 
     Returns
     -------
         list[dict[str, Any]]
             Sample of up to 5 community rows for logging.
     """
-    clusters = await cluster_graph(relationships, config)
+    clusters = await cluster_graph(relationships, config, delta)
+
+    if not clusters:
+        await table_provider.write_dataframe(
+            "communities", pd.DataFrame(columns=COMMUNITIES_FINAL_COLUMNS)
+        )
+        return []
 
     title_to_entity_id: dict[str, str] = {}
     async for row in entities_table:
@@ -84,7 +106,8 @@ async def create_communities(
     entity_map = communities[["community", "title"]].copy()
     entity_map["entity_id"] = entity_map["title"].map(title_to_entity_id)
     entity_ids = (
-        entity_map.dropna(subset=["entity_id"])
+        entity_map
+        .dropna(subset=["entity_id"])
         .groupby("community")
         .agg(entity_ids=("entity_id", list))
         .reset_index()
@@ -107,7 +130,8 @@ async def create_communities(
         if intra.empty:
             continue
         grouped = (
-            intra.explode("text_unit_ids")
+            intra
+            .explode("text_unit_ids")
             .groupby(["community_x", "parent_x"])
             .agg(
                 relationship_ids=("id", list),
