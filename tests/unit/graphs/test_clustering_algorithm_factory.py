@@ -8,7 +8,6 @@ from graphrag.config.models.cluster_graph_config import (
     LeidenClusterGraphConfig,
     VDStarClusterGraphConfig,
 )
-from graphrag.config.models.graph_rag_config import GraphRagConfig
 from graphrag.graphs.clustering.clustering_algorithm_factory import (
     ClusteringAlgorithmFactory,
 )
@@ -43,7 +42,7 @@ def test_vdstar_config_is_passed_through():
 
 
 def test_unknown_config_throws():
-    config = GraphRagConfig()
+    config = cfg()
     config.cluster_graph = cast("ClusterGraphConfig", "not-a-clustering-config")
 
     with pytest.raises(

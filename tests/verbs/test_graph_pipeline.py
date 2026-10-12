@@ -13,7 +13,13 @@ from graphrag.config.models.cluster_graph_config import ClusterGraphConfig
 from graphrag.config.models.graph_rag_config import GraphRagConfig
 from graphrag.index.typing.pipeline_run_result import PipelineRunResult
 
-from tests.unit.graph_utils import entities, leiden_config, relationships, vdstar_config
+from tests.unit.graph_utils import (
+    cfg,
+    entities,
+    leiden_config,
+    relationships,
+    vdstar_config,
+)
 
 GRAPH_WORKFLOWS = [
     "load_graph",
@@ -93,31 +99,19 @@ UPDATE_CASES = [
 
 def _config(tmp_path: Path, cluster_config: ClusterGraphConfig) -> GraphRagConfig:
     """A config whose every storage lives under tmp_path, with mock models."""
-    return GraphRagConfig(
-        graph_input_storage={"type": "file", "base_dir": str(tmp_path)},
-        output_storage={"type": "file", "base_dir": str(tmp_path / "output")},
-        update_output_storage={"type": "file", "base_dir": str(tmp_path / "update")},
-        vector_store={"type": "lancedb", "db_uri": str(tmp_path / "lancedb")},
-        cluster_graph=cluster_config,
-        # mock providers, so the model-backed workflows run for real without a model
-        completion_models={
-            "default_completion_model": {
-                "type": "mock",
-                "model_provider": "openai",
-                "model": "gpt-4o",
-                "mock_responses": [REPORT],
-            },
-        },
-        embedding_models={
-            "default_embedding_model": {
-                "type": "mock",
-                "model_provider": "openai",
-                "model": "text-embedding-3-large",
-                # length has to match vector_store.index_schema's vector_size
-                "mock_responses": [0.0] * 3072,
-            },
-        },
+    config = cfg(cluster_config, base_dir=tmp_path)
+    config.vector_store.db_uri = str(tmp_path / "lancedb")
+    # mock providers, so the model-backed workflows run for real without a model
+    completion = config.get_completion_model_config(
+        config.community_reports.completion_model_id
     )
+    completion.type = "mock"
+    completion.mock_responses = [REPORT]
+    embedding = config.get_embedding_model_config(config.embed_text.embedding_model_id)
+    embedding.type = "mock"
+    # length has to match vector_store.index_schema's vector_size
+    embedding.mock_responses = [0.0] * 3072
+    return config
 
 
 def _write_graph(

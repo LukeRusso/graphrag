@@ -17,6 +17,8 @@ from graphrag.index.workflows.load_graph import (
     run_workflow,
 )
 
+from tests.unit.graph_utils import cfg
+
 
 def _entities() -> pd.DataFrame:
     return pd.DataFrame([
@@ -68,9 +70,7 @@ def _write_graph(
     if relationships is not None:
         relationships.to_parquet(tmp_path / "relationships.parquet", index=False)
 
-    return GraphRagConfig(
-        graph_input_storage={"type": "file", "base_dir": str(tmp_path)}
-    )
+    return cfg(base_dir=tmp_path)
 
 
 def _list_cell(value: Any) -> list | None:

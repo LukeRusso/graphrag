@@ -3,6 +3,7 @@
 """Shared helpers for graph clustering tests."""
 
 from collections import defaultdict
+from pathlib import Path
 
 import pandas as pd
 from graphrag.config.models.cluster_graph_config import (
@@ -17,6 +18,8 @@ from graphrag.data_model.schemas import (
 )
 from graphrag.graphs.types import Cluster, Edge
 from graphrag_storage import StorageConfig
+
+from tests.unit.config.utils import get_default_graphrag_config
 
 
 def vdstar_config(**overrides) -> VDStarClusterGraphConfig:
@@ -40,14 +43,29 @@ def leiden_config(**overrides) -> LeidenClusterGraphConfig:
 
 
 def cfg(
-    cluster_graph: ClusterGraphConfig,
+    cluster_graph: ClusterGraphConfig | None = None,
     update_output_storage: StorageConfig | None = None,
+    *,
+    base_dir: Path | None = None,
 ) -> GraphRagConfig:
-    """Wrap a clustering config in the top-level pipeline config."""
-    return GraphRagConfig(
-        cluster_graph=cluster_graph,
-        update_output_storage=update_output_storage or {"type": "memory"},
-    )
+    """The default pipeline config with clustering config and memory storages, or files under base_dir."""
+    config = get_default_graphrag_config()
+    if cluster_graph is not None:
+        config.cluster_graph = cluster_graph
+    if base_dir is None:
+        config.output_storage = StorageConfig(type="memory")
+        config.update_output_storage = StorageConfig(type="memory")
+    else:
+        config.graph_input_storage = StorageConfig(type="file", base_dir=str(base_dir))
+        config.output_storage = StorageConfig(
+            type="file", base_dir=str(base_dir / "output")
+        )
+        config.update_output_storage = StorageConfig(
+            type="file", base_dir=str(base_dir / "update")
+        )
+    if update_output_storage is not None:
+        config.update_output_storage = update_output_storage
+    return config
 
 
 def triangle(name: str) -> list[Edge]:

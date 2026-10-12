@@ -9,8 +9,7 @@ from graphrag.index.workflows.graph_diff import GRAPH_DELTA_STATE_KEY, run_workf
 from graphrag_storage import StorageConfig, create_storage
 from graphrag_storage.tables.parquet_table_provider import ParquetTableProvider
 
-from tests.unit.config.utils import get_default_graphrag_config
-from tests.unit.graph_utils import entities, relationships
+from tests.unit.graph_utils import cfg, entities, relationships
 
 
 def _provider(path: Path) -> ParquetTableProvider:
@@ -34,7 +33,7 @@ async def test_no_previous_graph_adds_the_whole_supplied_graph(tmp_path):
         "relationships", relationships(("A", "B"))
     )
 
-    await run_workflow(get_default_graphrag_config(), context)
+    await run_workflow(cfg(), context)
 
     delta = context.state[GRAPH_DELTA_STATE_KEY]
     assert delta.added_edges == [Edge("A", "B", 1.0)]
@@ -58,7 +57,7 @@ async def test_the_delta_is_the_difference_from_the_previous_graph(tmp_path):
         "relationships", relationships(("A", "B"), ("C", "D"))
     )
 
-    await run_workflow(get_default_graphrag_config(), context)
+    await run_workflow(cfg(), context)
 
     delta = context.state[GRAPH_DELTA_STATE_KEY]
     assert delta.added_edges == [Edge("C", "D", 1.0)]
