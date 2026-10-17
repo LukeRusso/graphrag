@@ -36,6 +36,8 @@ GRAPH_UPDATE_WORKFLOWS = [
     "create_communities",
     "create_community_reports",
     "generate_text_embeddings",
+    "publish_graph",
+    "update_communities",
     "update_clean_state",
 ]
 

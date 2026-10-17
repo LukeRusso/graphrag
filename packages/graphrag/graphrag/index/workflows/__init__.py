@@ -54,6 +54,9 @@ from .load_update_documents import (
 from .prune_graph import (
     run_workflow as run_prune_graph,
 )
+from .publish_graph import (
+    run_workflow as run_publish_graph,
+)
 from .update_clean_state import (
     run_workflow as run_update_clean_state,
 )
@@ -101,6 +104,7 @@ PipelineFactory.register_all({  # noqa: RUF067
     "update_text_embeddings": run_update_text_embeddings,
     "update_community_reports": run_update_community_reports,
     "update_entities_relationships": run_update_entities_relationships,
+    "publish_graph": run_publish_graph,
     "update_communities": run_update_communities,
     "update_covariates": run_update_covariates,
     "update_text_units": run_update_text_units,

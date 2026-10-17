@@ -17,7 +17,10 @@ from graphrag.data_model.schemas import (
     RELATIONSHIPS_FINAL_COLUMNS,
 )
 from graphrag.graphs.types import Cluster, Edge
-from graphrag_storage import StorageConfig
+from graphrag.index.run.utils import create_run_context
+from graphrag.index.typing.context import PipelineRunContext
+from graphrag_storage import StorageConfig, create_storage
+from graphrag_storage.tables.parquet_table_provider import ParquetTableProvider
 
 from tests.unit.config.utils import get_default_graphrag_config
 
@@ -134,3 +137,33 @@ def relationships(*edges: tuple[str, str] | tuple[str, str, str]) -> pd.DataFram
         ],
         columns=RELATIONSHIPS_FINAL_COLUMNS,
     )
+
+
+def provider(path: Path) -> ParquetTableProvider:
+    """Return a parquet table provider rooted at a directory."""
+    return ParquetTableProvider(
+        storage=create_storage(StorageConfig(base_dir=str(path)))
+    )
+
+
+def update_context(root: Path, timestamp: str) -> PipelineRunContext:
+    """Return a run context pointing at a run's output and previous tables."""
+    return create_run_context(
+        output_table_provider=provider(root / "output"),
+        previous_table_provider=provider(root / "update" / timestamp / "previous"),
+        state={"update_timestamp": timestamp},
+    )
+
+
+def write_table(
+    root: Path, timestamp: str, stage: str, name: str, table: pd.DataFrame
+) -> None:
+    """Write a table into one of a run's staging directories."""
+    directory = root / "update" / timestamp / stage
+    directory.mkdir(parents=True, exist_ok=True)
+    table.to_parquet(directory / f"{name}.parquet", index=False)
+
+
+def read_output(root: Path, name: str) -> pd.DataFrame:
+    """Read a table from a run's output storage."""
+    return pd.read_parquet(root / "output" / f"{name}.parquet")
