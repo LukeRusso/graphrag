@@ -13,9 +13,10 @@ from graphrag_llm.tokenizer import Tokenizer
 import graphrag.data_model.schemas as schemas
 from graphrag.cache.cache_key_creator import cache_key_creator
 from graphrag.callbacks.workflow_callbacks import WorkflowCallbacks
-from graphrag.config.enums import AsyncType
+from graphrag.config.enums import AsyncType, CommunityUpdateMode
 from graphrag.config.models.graph_rag_config import GraphRagConfig
 from graphrag.data_model.data_reader import DataReader
+from graphrag.index.operations.cluster_graph import UNHANDLED_UPDATE_MODE_MSG
 from graphrag.index.operations.finalize_community_reports import (
     finalize_community_reports,
 )
@@ -31,11 +32,18 @@ from graphrag.index.operations.summarize_communities.summarize_communities impor
 )
 from graphrag.index.typing.context import PipelineRunContext
 from graphrag.index.typing.workflow import WorkflowFunctionOutput
+from graphrag.index.update.communities import (
+    fingerprint_report_inputs,
+    reusable_reports,
+)
+from graphrag.index.workflows.graph_diff import GRAPH_DELTA_STATE_KEY
 
 if TYPE_CHECKING:
     from graphrag_llm.completion import LLMCompletion
 
 logger = logging.getLogger(__name__)
+
+REUSED_REPORTS_STATE_KEY = "incremental_update_reused_reports"
 
 
 async def run_workflow(
@@ -60,6 +68,22 @@ async def run_workflow(
         "covariates"
     ):
         claims = await reader.covariates()
+
+    reused_reports_map = await _reused_reports_map(
+        config, context, communities, entities, relationships, claims
+    )
+    if reused_reports_map:
+        context.state[REUSED_REPORTS_STATE_KEY] = reused_reports_map
+        communities = communities[
+            ~communities[schemas.COMMUNITY_ID].astype(int).isin(reused_reports_map)
+        ]
+        if communities.empty:
+            output = pd.DataFrame(columns=schemas.COMMUNITY_REPORTS_FINAL_COLUMNS)
+            await context.output_table_provider.write_dataframe(
+                "community_reports", output
+            )
+            logger.info("Workflow completed: create_community_reports")
+            return WorkflowFunctionOutput(result=output)
 
     model_config = config.get_completion_model_config(
         config.community_reports.completion_model_id
@@ -203,3 +227,42 @@ def _prep_claims(input: pd.DataFrame) -> pd.DataFrame:
     ].to_dict(orient="records")
 
     return input
+
+
+async def _reused_reports_map(
+    config: GraphRagConfig,
+    context: PipelineRunContext,
+    communities: pd.DataFrame,
+    entities: pd.DataFrame,
+    relationships: pd.DataFrame,
+    claims: pd.DataFrame | None,
+) -> dict[int, int]:
+    if GRAPH_DELTA_STATE_KEY not in context.state:
+        return {}
+
+    match config.cluster_graph.update_mode:
+        case CommunityUpdateMode.Additive:
+            # the delta holds only titles absent from previous/, so nothing can match
+            return {}
+        case CommunityUpdateMode.Incremental:
+            previous = context.previous_table_provider
+            if previous is None or not await previous.has("communities"):
+                return {}
+            previous_reader = DataReader(previous)
+            previous_claims = None
+            if config.extract_claims.enabled and await previous.has("covariates"):
+                previous_claims = await previous_reader.covariates()
+            return reusable_reports(
+                fingerprint_report_inputs(communities, entities, relationships, claims),
+                fingerprint_report_inputs(
+                    await previous_reader.communities(),
+                    await previous_reader.entities(),
+                    await previous_reader.relationships(),
+                    previous_claims,
+                ),
+            )
+        case _:
+            error_msg = (
+                f"{UNHANDLED_UPDATE_MODE_MSG}: {config.cluster_graph.update_mode}"
+            )
+            raise ValueError(error_msg)

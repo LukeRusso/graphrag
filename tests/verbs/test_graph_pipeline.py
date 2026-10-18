@@ -38,6 +38,7 @@ GRAPH_UPDATE_WORKFLOWS = [
     "generate_text_embeddings",
     "publish_graph",
     "update_communities",
+    "update_community_reports",
     "update_clean_state",
 ]
 
@@ -234,6 +235,9 @@ class TestGraphUpdate:
         assert [output.error for output in outputs] == [None] * len(
             GRAPH_UPDATE_WORKFLOWS
         )
+        communities = _read_output(tmp_path, "communities")
+        reports = _read_output(tmp_path, "community_reports")
+        assert set(reports["community"]) == set(communities["community"])
 
     @pytest.mark.parametrize(("cluster_config", "seeded", "expected"), UPDATE_CASES)
     async def test_clusters_according_to_the_update_mode(

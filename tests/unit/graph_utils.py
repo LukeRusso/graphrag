@@ -2,6 +2,7 @@
 
 """Shared helpers for graph clustering tests."""
 
+import json
 from collections import defaultdict
 from pathlib import Path
 
@@ -13,16 +14,30 @@ from graphrag.config.models.cluster_graph_config import (
 )
 from graphrag.config.models.graph_rag_config import GraphRagConfig
 from graphrag.data_model.schemas import (
+    COMMUNITIES_FINAL_COLUMNS,
     ENTITIES_FINAL_COLUMNS,
     RELATIONSHIPS_FINAL_COLUMNS,
 )
 from graphrag.graphs.types import Cluster, Edge
 from graphrag.index.run.utils import create_run_context
 from graphrag.index.typing.context import PipelineRunContext
+from graphrag.index.update.relationships import GraphDelta
+from graphrag.index.workflows.graph_diff import GRAPH_DELTA_STATE_KEY
 from graphrag_storage import StorageConfig, create_storage
 from graphrag_storage.tables.parquet_table_provider import ParquetTableProvider
+from graphrag_storage.tables.table_provider import TableProvider
 
 from tests.unit.config.utils import get_default_graphrag_config
+
+PERIOD = "2026-10-12"
+
+DEFAULT_REPORT_RESPONSE = json.dumps({
+    "title": "Community report",
+    "summary": "A summary.",
+    "rating": 5.0,
+    "rating_explanation": "Because.",
+    "findings": [{"summary": "A finding.", "explanation": "Why."}],
+})
 
 
 def vdstar_config(**overrides) -> VDStarClusterGraphConfig:
@@ -68,6 +83,11 @@ def cfg(
         )
     if update_output_storage is not None:
         config.update_output_storage = update_output_storage
+    completion = config.get_completion_model_config(
+        config.community_reports.completion_model_id
+    )
+    completion.type = "mock"
+    completion.mock_responses = [DEFAULT_REPORT_RESPONSE]
     return config
 
 
@@ -139,6 +159,35 @@ def relationships(*edges: tuple[str, str] | tuple[str, str, str]) -> pd.DataFram
     )
 
 
+def communities(
+    *groups: tuple[str, ...], level: int = 0, parents: list[int] | None = None
+) -> pd.DataFrame:
+    """A communities frame, one row per member group, ids numbered from zero."""
+    frame = pd.DataFrame(
+        [
+            {
+                "id": f"c{community}",
+                "human_readable_id": community,
+                "community": community,
+                "level": level,
+                "parent": -1,
+                "children": [],
+                "title": f"Community {community}",
+                "entity_ids": [f"e{title}" for title in group],
+                "relationship_ids": [],
+                "text_unit_ids": [],
+                "period": PERIOD,
+                "size": len(group),
+            }
+            for community, group in enumerate(groups)
+        ],
+        columns=COMMUNITIES_FINAL_COLUMNS,
+    )
+    if parents is not None:
+        frame["parent"] = parents
+    return frame
+
+
 def provider(path: Path) -> ParquetTableProvider:
     """Return a parquet table provider rooted at a directory."""
     return ParquetTableProvider(
@@ -151,8 +200,19 @@ def update_context(root: Path, timestamp: str) -> PipelineRunContext:
     return create_run_context(
         output_table_provider=provider(root / "output"),
         previous_table_provider=provider(root / "update" / timestamp / "previous"),
-        state={"update_timestamp": timestamp},
+        state={
+            "update_timestamp": timestamp,
+            GRAPH_DELTA_STATE_KEY: GraphDelta([], [], [], []),
+        },
     )
+
+
+async def write_tables(
+    provider_: TableProvider, tables: dict[str, pd.DataFrame]
+) -> None:
+    """Write several tables into a table provider."""
+    for name, table in tables.items():
+        await provider_.write_dataframe(name, table)
 
 
 def write_table(

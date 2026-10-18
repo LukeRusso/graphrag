@@ -3,6 +3,7 @@
 
 
 import pandas as pd
+from graphrag.config.enums import CommunityUpdateMode
 from graphrag.data_model.schemas import (
     COMMUNITIES_FINAL_COLUMNS,
     COMMUNITY_REPORTS_FINAL_COLUMNS,
@@ -13,13 +14,24 @@ from graphrag.index.operations.summarize_communities.community_reports_extractor
 )
 from graphrag.index.run.utils import create_run_context
 from graphrag.index.workflows.create_community_reports import (
+    REUSED_REPORTS_STATE_KEY,
     run_workflow,
 )
 from graphrag_storage.memory_storage import MemoryStorage
 from graphrag_storage.tables.parquet_table_provider import ParquetTableProvider
 
 from tests.unit.config.utils import get_default_graphrag_config
-from tests.unit.graph_utils import cfg, entities, leiden_config, relationships
+from tests.unit.graph_utils import (
+    cfg,
+    communities,
+    entities,
+    leiden_config,
+    provider,
+    relationships,
+    update_context,
+    vdstar_config,
+    write_tables,
+)
 
 from .util import (
     compare_outputs,
@@ -92,3 +104,79 @@ async def test_no_communities_writes_an_empty_reports_table():
     reports = await provider.read_dataframe("community_reports")
     assert reports.empty
     assert list(reports.columns) == COMMUNITY_REPORTS_FINAL_COLUMNS
+
+
+TIMESTAMP = "20261012-000000"
+
+
+def _frames(communities_frame, entities_frame, relationships_frame):
+    """The three graph tables a report run reads, keyed by table name."""
+    return {
+        "communities": communities_frame,
+        "entities": entities_frame,
+        "relationships": relationships_frame,
+    }
+
+
+async def test_unchanged_communities_are_reused_without_a_report(tmp_path):
+    frames = _frames(
+        communities(("A", "B"), ("C",)),
+        entities("A", "B", "C"),
+        relationships(("A", "B")),
+    )
+    context = update_context(tmp_path, TIMESTAMP)
+    await write_tables(provider(tmp_path / "update" / TIMESTAMP / "previous"), frames)
+    await write_tables(context.output_table_provider, frames)
+
+    config = cfg(vdstar_config(update_mode=CommunityUpdateMode.Incremental))
+    await run_workflow(config, context)
+
+    assert await context.output_table_provider.has("community_reports")
+    reports = await context.output_table_provider.read_dataframe("community_reports")
+    assert reports.empty
+    assert list(reports.columns) == COMMUNITY_REPORTS_FINAL_COLUMNS
+    assert context.state[REUSED_REPORTS_STATE_KEY] == {0: 0, 1: 1}
+
+
+async def test_a_changed_community_is_regenerated_and_the_rest_reused(tmp_path):
+    previous_entities = entities("A", "B", "C")
+    changed_entities = previous_entities.copy()
+    changed_entities.loc[changed_entities["title"] == "B", "description"] = "B changed."
+    communities_frame = communities(("A", "B"), ("C",))
+    relationships_frame = relationships(("A", "B"))
+    context = update_context(tmp_path, TIMESTAMP)
+    await write_tables(
+        provider(tmp_path / "update" / TIMESTAMP / "previous"),
+        _frames(communities_frame, previous_entities, relationships_frame),
+    )
+    await write_tables(
+        context.output_table_provider,
+        _frames(communities_frame, changed_entities, relationships_frame),
+    )
+
+    config = cfg(vdstar_config(update_mode=CommunityUpdateMode.Incremental))
+    await run_workflow(config, context)
+
+    reports = await context.output_table_provider.read_dataframe("community_reports")
+    assert list(reports["community"]) == [0]
+    assert context.state[REUSED_REPORTS_STATE_KEY] == {1: 1}
+
+
+async def test_a_build_run_reuses_nothing(tmp_path):
+    frames = _frames(
+        communities(("A", "B"), ("C",)),
+        entities("A", "B", "C"),
+        relationships(("A", "B")),
+    )
+    context = create_run_context(
+        output_table_provider=provider(tmp_path / "output"),
+    )
+    await write_tables(provider(tmp_path / "update" / TIMESTAMP / "previous"), frames)
+    await write_tables(context.output_table_provider, frames)
+
+    config = cfg(vdstar_config(update_mode=CommunityUpdateMode.Incremental))
+    await run_workflow(config, context)
+
+    reports = await context.output_table_provider.read_dataframe("community_reports")
+    assert set(reports["community"]) == {0, 1}
+    assert REUSED_REPORTS_STATE_KEY not in context.state

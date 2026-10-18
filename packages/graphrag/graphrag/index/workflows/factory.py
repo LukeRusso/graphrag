@@ -87,6 +87,7 @@ _graph_update_workflows = [
     "generate_text_embeddings",
     "publish_graph",
     "update_communities",
+    "update_community_reports",
     "update_clean_state",
 ]
 _update_workflows = [
