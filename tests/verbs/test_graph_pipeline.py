@@ -18,12 +18,16 @@ from tests.unit.graph_utils import (
     entities,
     leiden_config,
     relationships,
+    text_units,
     vdstar_config,
 )
+
+TEXT_UNIT = "t1"
 
 GRAPH_WORKFLOWS = [
     "load_graph",
     "finalize_graph",
+    "create_final_text_units",
     "create_communities",
     "create_community_reports",
     "generate_text_embeddings",
@@ -32,6 +36,7 @@ GRAPH_WORKFLOWS = [
 GRAPH_UPDATE_WORKFLOWS = [
     "load_graph",
     "finalize_graph",
+    "create_final_text_units",
     "graph_diff",
     "create_communities",
     "create_community_reports",
@@ -120,10 +125,23 @@ def _config(tmp_path: Path, cluster_config: ClusterGraphConfig) -> GraphRagConfi
 def _write_graph(
     directory: Path, titles: tuple[str, ...], edges: list[tuple[str, str, str]]
 ) -> None:
-    """Write a graph's entities and relationships tables into a directory."""
+    """Write a supplied graph's three tables into a directory."""
     directory.mkdir(parents=True, exist_ok=True)
-    entities(*titles).to_parquet(directory / "entities.parquet", index=False)
+    units = list(dict.fromkeys(unit for _, _, unit in edges)) or [TEXT_UNIT]
+    entity_units = [
+        list(
+            dict.fromkeys(
+                unit for source, target, unit in edges if title in (source, target)
+            )
+        )
+        or units
+        for title in titles
+    ]
+    entities(*titles).assign(
+        text_unit_ids=pd.Series(entity_units, dtype=object)
+    ).to_parquet(directory / "entities.parquet", index=False)
     relationships(*edges).to_parquet(directory / "relationships.parquet", index=False)
+    text_units(*units).to_parquet(directory / "text_units.parquet", index=False)
 
 
 def _read_output(tmp_path: Path, name: str) -> pd.DataFrame:
@@ -204,6 +222,25 @@ class TestGraphBuild:
         assert len(communities) == 2
         assert by_members == EXPECTED_COMMUNITIES
 
+    async def test_the_text_units_are_linked_to_the_supplied_graph(self, tmp_path):
+        _write_graph(tmp_path, SUPPLIED_TITLES, SUPPLIED_EDGES)
+        await _build(_config(tmp_path, leiden_config()))
+        entities_table = _read_output(tmp_path, "entities")
+        units = _read_output(tmp_path, "text_units")
+
+        title_of = dict(zip(entities_table["id"], entities_table["title"], strict=True))
+        by_unit = {
+            row["id"]: (
+                frozenset(title_of[entity_id] for entity_id in row["entity_ids"]),
+                len(row["relationship_ids"]),
+            )
+            for _, row in units.iterrows()
+        }
+
+        assert set(by_unit) == {f"t{index}" for index in range(6)}
+        assert by_unit["t0"] == (frozenset({"A", "B"}), 1)
+        assert by_unit["t5"] == (frozenset({"E", "F"}), 1)
+
     @pytest.mark.parametrize("cluster_config", CLUSTERING)
     async def test_writes_a_report_for_each_community(self, tmp_path, cluster_config):
         _write_graph(tmp_path, SUPPLIED_TITLES, SUPPLIED_EDGES)
@@ -238,6 +275,13 @@ class TestGraphUpdate:
         communities = _read_output(tmp_path, "communities")
         reports = _read_output(tmp_path, "community_reports")
         assert set(reports["community"]) == set(communities["community"])
+
+    async def test_an_update_run_publishes_the_text_units(self, tmp_path):
+        await _run_update(tmp_path, vdstar_config(), seeded=True)
+
+        units = _read_output(tmp_path, "text_units")
+
+        assert set(units["id"]) == {f"t{index}" for index in range(9)}
 
     @pytest.mark.parametrize(("cluster_config", "seeded", "expected"), UPDATE_CASES)
     async def test_clusters_according_to_the_update_mode(

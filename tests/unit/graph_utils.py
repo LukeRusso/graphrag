@@ -159,6 +159,17 @@ def relationships(*edges: tuple[str, str] | tuple[str, str, str]) -> pd.DataFram
     )
 
 
+def text_units(*ids: str) -> pd.DataFrame:
+    """A text units frame, one row per id."""
+    return pd.DataFrame(
+        [
+            {"id": unit, "text": f"Text for {unit}.", "document_id": None}
+            for unit in ids
+        ],
+        columns=["id", "text", "document_id"],
+    )
+
+
 def communities(
     *groups: tuple[str, ...], level: int = 0, parents: list[int] | None = None
 ) -> pd.DataFrame:

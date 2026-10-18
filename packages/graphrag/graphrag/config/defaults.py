@@ -250,6 +250,7 @@ class GraphInputDefaults:
 
     entities_file: str = "entities.parquet"
     relationships_file: str = "relationships.parquet"
+    text_units_file: str = "text_units.parquet"
 
 
 @dataclass

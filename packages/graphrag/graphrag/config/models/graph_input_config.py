@@ -23,3 +23,8 @@ class GraphInputConfig(BaseModel):
         description="The file name of the supplied relationships table.",
         default=graphrag_config_defaults.graph_input.relationships_file,
     )
+
+    text_units_file: str = Field(
+        description="The file name of the supplied text units table.",
+        default=graphrag_config_defaults.graph_input.text_units_file,
+    )

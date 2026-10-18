@@ -74,6 +74,7 @@ _fast_workflows = [
 _graph_workflows = [
     "load_graph",
     "finalize_graph",
+    "create_final_text_units",
     "create_communities",
     "create_community_reports",
     "generate_text_embeddings",
@@ -81,6 +82,7 @@ _graph_workflows = [
 _graph_update_workflows = [
     "load_graph",
     "finalize_graph",
+    "create_final_text_units",
     "graph_diff",
     "create_communities",
     "create_community_reports",

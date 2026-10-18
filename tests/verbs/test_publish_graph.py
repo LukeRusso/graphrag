@@ -10,6 +10,7 @@ from tests.unit.graph_utils import (
     entities,
     read_output,
     relationships,
+    text_units,
     update_context,
     write_table,
 )
@@ -17,11 +18,17 @@ from tests.unit.graph_utils import (
 TIMESTAMP = "20261012-000000"
 
 
+def _units():
+    return text_units("t1").assign(human_readable_id=0, n_tokens=4)
+
+
 async def test_the_supplied_graph_is_published_to_output(tmp_path):
     entity_table = entities("A", "B")
     relationship_table = relationships(("A", "B"))
+    unit_table = _units()
     write_table(tmp_path, TIMESTAMP, "delta", "entities", entity_table)
     write_table(tmp_path, TIMESTAMP, "delta", "relationships", relationship_table)
+    write_table(tmp_path, TIMESTAMP, "delta", "text_units", unit_table)
 
     await run_workflow(cfg(base_dir=tmp_path), update_context(tmp_path, TIMESTAMP))
 
@@ -31,19 +38,6 @@ async def test_the_supplied_graph_is_published_to_output(tmp_path):
     assert_frame_equal(
         read_output(tmp_path, "relationships"), relationship_table, check_dtype=False
     )
-
-
-async def test_an_edge_with_a_missing_endpoint_is_dropped(tmp_path):
-    write_table(tmp_path, TIMESTAMP, "delta", "entities", entities("A", "B"))
-    write_table(
-        tmp_path,
-        TIMESTAMP,
-        "delta",
-        "relationships",
-        relationships(("A", "B"), ("A", "Z")),
+    assert_frame_equal(
+        read_output(tmp_path, "text_units"), unit_table, check_dtype=False
     )
-
-    await run_workflow(cfg(base_dir=tmp_path), update_context(tmp_path, TIMESTAMP))
-
-    edges = read_output(tmp_path, "relationships")[["source", "target"]]
-    assert list(edges.itertuples(index=False, name=None)) == [("A", "B")]

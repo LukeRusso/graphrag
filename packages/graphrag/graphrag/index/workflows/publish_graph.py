@@ -9,7 +9,6 @@ from graphrag_storage.tables.table_provider import TableProvider
 
 from graphrag.config.models.graph_rag_config import GraphRagConfig
 from graphrag.data_model.data_reader import DataReader
-from graphrag.index.operations.extract_graph.utils import filter_orphan_relationships
 from graphrag.index.run.utils import get_update_table_providers
 from graphrag.index.typing.context import PipelineRunContext
 from graphrag.index.typing.workflow import WorkflowFunctionOutput
@@ -37,12 +36,12 @@ async def _publish_graph(
     delta_table_provider: TableProvider,
     output_table_provider: TableProvider,
 ) -> None:
-    """Write the delta's entities and relationships to the output."""
+    """Write the delta's graph tables to the output."""
     reader = DataReader(delta_table_provider)
     entities = await reader.entities()
     relationships = await reader.relationships()
-
-    relationships = filter_orphan_relationships(relationships, entities)
+    text_units = await reader.text_units()
 
     await output_table_provider.write_dataframe("entities", entities)
     await output_table_provider.write_dataframe("relationships", relationships)
+    await output_table_provider.write_dataframe("text_units", text_units)
