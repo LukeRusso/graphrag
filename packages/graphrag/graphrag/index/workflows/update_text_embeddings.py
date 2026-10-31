@@ -46,6 +46,7 @@ async def run_workflow(
         callbacks=context.callbacks,
         model=model,
         tokenizer=tokenizer,
+        mode="reuse",
     )
 
     logger.info("Workflow completed: update_text_embeddings")

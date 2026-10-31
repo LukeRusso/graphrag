@@ -207,6 +207,11 @@ class VectorStore(ABC):
     def count(self) -> int:
         """Return the total number of documents in the store."""
 
+    def ids(self) -> list[str]:
+        """Return every document id in the store."""
+        msg = f"{type(self).__name__} does not support listing ids."
+        raise NotImplementedError(msg)
+
     @abstractmethod
     def remove(self, ids: list[str]) -> None:
         """Remove documents by id."""

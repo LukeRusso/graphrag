@@ -32,6 +32,8 @@ async def embed_text(
     vector_store: VectorStore,
     id_column: str = "id",
     output_table: Table | None = None,
+    skip_ids: set[str] | None = None,
+    truncate: bool = True,
 ) -> int:
     """Embed text from a streaming Table into a vector store.
 
@@ -40,13 +42,17 @@ async def embed_text(
     ``num_threads``.  The buffer is sized so each flush produces
     enough batches to saturate the concurrency limit.
     """
-    vector_store.create_index()
+    if truncate or not vector_store.ids():
+        vector_store.create_index()
 
     buffer: list[dict[str, Any]] = []
     total_rows = 0
     flush_size = batch_size * num_threads
 
     async for row in input_table:
+        if skip_ids and str(row[id_column]) in skip_ids:
+            continue
+
         text = row.get(embed_column)
         if text is None:
             text = ""

@@ -255,6 +255,13 @@ class LanceDBVectorStore(VectorStore):
         """Return the total number of documents in the store."""
         return self.document_collection.count_rows()
 
+    def ids(self) -> list[str]:
+        """Return every document id in the store."""
+        if self.index_name not in self.db_connection.table_names():
+            return []
+        table = self.db_connection.open_table(self.index_name).to_arrow()
+        return [str(value) for value in table.column(self.id_field).to_pylist()]
+
     def remove(self, ids: list[str]) -> None:
         """Remove documents by their IDs."""
         id_list = ", ".join(f"'{id}'" for id in ids)

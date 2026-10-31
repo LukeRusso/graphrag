@@ -86,10 +86,10 @@ _graph_update_workflows = [
     "graph_diff",
     "create_communities",
     "create_community_reports",
-    "generate_text_embeddings",
     "publish_graph",
     "update_communities",
     "update_community_reports",
+    "update_text_embeddings",
     "update_clean_state",
 ]
 _update_workflows = [

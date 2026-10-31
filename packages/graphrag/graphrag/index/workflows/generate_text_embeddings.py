@@ -6,7 +6,7 @@
 import logging
 from contextlib import AsyncExitStack
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 from graphrag_llm.embedding import create_embedding
 from graphrag_storage.tables.table import RowTransformer
@@ -69,6 +69,17 @@ EMBEDDING_FIELDS: dict[str, EmbeddingFieldConfig] = {
 }
 
 
+async def _table_ids(
+    table_provider: "TableProvider", field_config: EmbeddingFieldConfig
+) -> set[str]:
+    """Return the ids of the rows a table holds."""
+    ids: set[str] = set()
+    async with table_provider.open(field_config.table_name) as table:
+        async for row in table:
+            ids.add(str(row["id"]))
+    return ids
+
+
 async def run_workflow(
     config: GraphRagConfig,
     context: PipelineRunContext,
@@ -104,8 +115,15 @@ async def generate_text_embeddings(
     callbacks: WorkflowCallbacks,
     model: "LLMEmbedding",
     tokenizer: "Tokenizer",
+    *,
+    mode: Literal["rebuild", "reuse"] = "rebuild",
 ) -> None:
-    """Generate text embeddings for all configured fields."""
+    """Generate text embeddings for all configured fields.
+
+    A ``reuse`` run embeds only the rows the store does not hold yet and removes
+    the vectors of rows it no longer holds, so an unchanged row keeps the
+    embedding it already has. ``rebuild`` recomputes every field.
+    """
     embedded_fields = config.embed_text.names
     logger.info("Embedding the following fields: %s", embedded_fields)
 
@@ -126,6 +144,21 @@ async def generate_text_embeddings(
             config.vector_store.index_schema[field_config.name],
         )
         vector_store.connect()
+
+        reuse = mode == "reuse"
+        skip_ids: set[str] = set()
+        stale_ids: list[str] = []
+        truncate = not reuse
+        if reuse:
+            try:
+                stored = set(vector_store.ids())
+            except NotImplementedError:
+                # this store cannot list ids, so rebuild the field instead
+                truncate = True
+            else:
+                published = await _table_ids(table_provider, field_config)
+                skip_ids = stored.intersection(published)
+                stale_ids = list(stored.difference(published))
 
         async with AsyncExitStack() as stack:
             input_table = await stack.enter_async_context(
@@ -153,6 +186,16 @@ async def generate_text_embeddings(
                 num_threads=config.concurrent_requests,
                 vector_store=vector_store,
                 output_table=output_table,
+                skip_ids=skip_ids,
+                truncate=truncate,
+            )
+
+        if stale_ids:
+            vector_store.remove(stale_ids)
+            logger.info(
+                "Removed %d stale embeddings for %s",
+                len(stale_ids),
+                field_config.name,
             )
 
         logger.info(

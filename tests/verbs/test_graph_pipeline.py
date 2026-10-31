@@ -12,6 +12,7 @@ from graphrag.config.enums import CommunityUpdateMode, IndexingMethod
 from graphrag.config.models.cluster_graph_config import ClusterGraphConfig
 from graphrag.config.models.graph_rag_config import GraphRagConfig
 from graphrag.index.typing.pipeline_run_result import PipelineRunResult
+from graphrag_vectors import create_vector_store
 
 from tests.unit.graph_utils import (
     cfg,
@@ -40,10 +41,10 @@ GRAPH_UPDATE_WORKFLOWS = [
     "graph_diff",
     "create_communities",
     "create_community_reports",
-    "generate_text_embeddings",
     "publish_graph",
     "update_communities",
     "update_community_reports",
+    "update_text_embeddings",
     "update_clean_state",
 ]
 
@@ -282,6 +283,18 @@ class TestGraphUpdate:
         units = _read_output(tmp_path, "text_units")
 
         assert set(units["id"]) == {f"t{index}" for index in range(9)}
+
+    async def test_an_update_run_embeds_every_published_report(self, tmp_path):
+        await _run_update(tmp_path, vdstar_config(), seeded=True)
+        reports = _read_output(tmp_path, "community_reports")
+        config = _config(tmp_path, vdstar_config())
+        store = create_vector_store(
+            config.vector_store,
+            config.vector_store.index_schema["community_full_content"],
+        )
+        store.connect()
+
+        assert set(store.ids()) == set(reports["id"].astype(str))
 
     @pytest.mark.parametrize(("cluster_config", "seeded", "expected"), UPDATE_CASES)
     async def test_clusters_according_to_the_update_mode(
